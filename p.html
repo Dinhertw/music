@@ -758,7 +758,7 @@
       if (syncInterval) clearInterval(syncInterval);
       syncInterval = setInterval(() => {
         apiCall('getState');
-      }, 5000);
+      }, 10000);
     }
 
     inputContainer.addEventListener('mousedown', () => {
