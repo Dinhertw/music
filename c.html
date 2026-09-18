@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Qimei Remote Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body, html {
+      width: 100%;
+      height: 100%;
+      background-color: #0f172a;
+      color: #fff;
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      overflow: hidden;
+    }
+    
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .tab-btn.active {
+      background: rgba(79, 172, 254, 0.2);
+      border-bottom: 2px solid #4facfe;
+      color: #4facfe;
+    }
+
+    .song-item {
+      background: rgba(0, 0, 0, 0.4);
+      border-left: 3px solid #4facfe;
+    }
+
+    /* 自定義捲軸 */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+    .loader {
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top: 3px solid #4facfe;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="flex flex-col h-full">
+
+  <header class="glass-panel p-4 flex flex-col gap-3 shadow-lg z-10 shrink-0">
+    <div class="flex justify-between items-center">
+      <h1 class="text-lg font-bold tracking-wider">Qimei Remote</h1>
+      <div id="syncStatus" class="loader"></div>
+    </div>
+    
+    <div class="flex gap-2">
+      <input type="text" id="urlInput" placeholder="貼上 YouTube 連結" 
+             class="flex-1 bg-black/50 border border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4facfe] transition-colors">
+      <button id="addBtn" class="bg-[#4facfe]/80 hover:bg-[#4facfe] text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+        新增
+      </button>
+    </div>
+  </header>
+
+  <div class="flex shrink-0 glass-panel border-t-0">
+    <button id="tabPlaylist" class="tab-btn active flex-1 py-3 text-sm font-bold transition-colors" onclick="switchTab('playlist')">播放列表</button>
+    <button id="tabHistory" class="tab-btn flex-1 py-3 text-sm font-bold text-gray-400 transition-colors" onclick="switchTab('history')">歷史紀錄</button>
+  </div>
+
+  <main class="flex-1 overflow-y-auto p-4 relative">
+    <div id="playlistContainer" class="flex flex-col gap-2"></div>
+    <div id="historyContainer" class="flex flex-col gap-2 hidden"></div>
+  </main>
+
+  <script>
+    // ==========================================
+    // 請將下方字串替換為你部署 GAS 後得到的網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwmIW-BQypEkrrWrsFPcnc8IKDArD6wOvmOS29A0jWguTyVSo6ZHJmiM2i-g02DJpA/exec"; 
+    // ==========================================
+
+    let playlist = [];
+    let historyList = [];
+    const syncStatus = document.getElementById('syncStatus');
+
+    function switchTab(tab) {
+      document.getElementById('tabPlaylist').classList.toggle('active', tab === 'playlist');
+      document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+      document.getElementById('tabPlaylist').classList.toggle('text-gray-400', tab !== 'playlist');
+      document.getElementById('tabHistory').classList.toggle('text-gray-400', tab !== 'history');
+      
+      document.getElementById('playlistContainer').classList.toggle('hidden', tab !== 'playlist');
+      document.getElementById('historyContainer').classList.toggle('hidden', tab !== 'history');
+    }
+
+    async function apiCall(action, payload = {}) {
+      syncStatus.style.display = 'block';
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action, ...payload })
+        });
+        const data = await res.json();
+        if (data.playlist) playlist = data.playlist;
+        if (data.history) historyList = data.history;
+        renderLists();
+      } catch (e) {
+        console.error("API Error", e);
+      } finally {
+        syncStatus.style.display = 'none';
+      }
+    }
+
+    function renderLists() {
+      // 渲染播放列表
+      const plContainer = document.getElementById('playlistContainer');
+      plContainer.innerHTML = playlist.length === 0 ? '<p class="text-center text-gray-400 text-sm mt-10">列表是空的</p>' : '';
+      playlist.forEach((song, i) => {
+        plContainer.innerHTML += `
+          <div class="song-item rounded-lg p-3 flex justify-between items-center shadow">
+            <div class="truncate pr-2 text-sm">${i === 0 ? '▶ ' : ''}${song.title}</div>
+            <button onclick="removeSong(${i})" class="text-red-400 hover:text-red-300 px-2 py-1 text-xs shrink-0 bg-red-400/10 rounded">刪除</button>
+          </div>
+        `;
+      });
+
+      // 渲染歷史紀錄
+      const hiContainer = document.getElementById('historyContainer');
+      hiContainer.innerHTML = historyList.length === 0 ? '<p class="text-center text-gray-400 text-sm mt-10">尚無紀錄</p>' : '';
+      historyList.forEach(song => {
+        hiContainer.innerHTML += `
+          <div class="glass-panel border-none bg-white/5 rounded-lg p-3 flex justify-between items-center shadow">
+            <div class="truncate pr-2 text-sm text-gray-300">${song.title}</div>
+            <button onclick="reAddSong('${song.id}', '${song.title.replace(/'/g, "\\'")}')" class="text-[#4facfe] hover:text-blue-300 px-2 py-1 text-xs shrink-0 bg-[#4facfe]/10 rounded">再聽一次</button>
+          </div>
+        `;
+      });
+    }
+
+    function extractVideoId(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    async function fetchVideoTitle(videoId) {
+      try {
+        const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+        const data = await res.json();
+        return data.title || `YouTube Track (${videoId})`;
+      } catch (e) {
+        return `YouTube Track (${videoId})`;
+      }
+    }
+
+    document.getElementById('addBtn').addEventListener('click', async () => {
+      const url = document.getElementById('urlInput').value.trim();
+      const videoId = extractVideoId(url);
+      if (!videoId) return alert('無效的 YouTube 連結');
+      
+      const btn = document.getElementById('addBtn');
+      btn.innerText = '處理中...';
+      const title = await fetchVideoTitle(videoId);
+      
+      await apiCall('addSong', { song: { id: videoId, title } });
+      document.getElementById('urlInput').value = '';
+      btn.innerText = '新增';
+      switchTab('playlist');
+    });
+
+    function removeSong(index) {
+      if(confirm('確定刪除這首歌？')) {
+        apiCall('removeSong', { index });
+      }
+    }
+
+    function reAddSong(id, title) {
+      apiCall('addSong', { song: { id, title } });
+      alert('已加回播放列表！');
+    }
+
+    // 初始化與輪詢
+    apiCall('getState');
+    setInterval(() => apiCall('getState'), 5000); // 每5秒同步一次
+  </script>
+</body>
+</html>
