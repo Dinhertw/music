@@ -699,13 +699,20 @@
 
         // 1. 同步播放清單
         if (data.playlist && JSON.stringify(data.playlist) !== JSON.stringify(playlist)) {
-          const wasEmpty = playlist.length === 0;
           playlist = data.playlist;
           saveLocalPlaylist();
           updatePlaylistUI();
 
-          if (wasEmpty && playlist.length > 0 && isApiReady) {
-            checkAndPlayNext();
+          // 核心修改：只要清單有歌，且播放器準備好了，就強制播放第一首
+          // （你可以根據需求決定是否加上條件，例如：確保不會打擾到使用者正在聽的歌，或者強制同步）
+          if (playlist.length > 0 && isApiReady) {
+            // 如果當前沒有在播放，或者想強制重置播放第一首
+            const playerState = player && typeof player.getPlayerState === 'function' ? player.getPlayerState() : -1;
+            
+            // 狀態 -1 (未開始) 或 3 (緩衝中) 或 2 (暫停) 時，若清單變動可自動對齊第一首
+            if (playerState !== YT.PlayerState.PLAYING) {
+              checkAndPlayNext();
+            }
           }
         }
 
