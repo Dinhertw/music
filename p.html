@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qimei Music Web (Cloud Sync)</title>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      color: #fff;
+    }
+
+    #player-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      border-radius: 0px;
+      overflow: hidden;
+      background-color: #000;
+      will-change: width, height, border-radius, box-shadow;
+      transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+                  height 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+                  border-radius 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+                  box-shadow 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    #player-container.subtitle-active {
+      width: 75vw;
+      height: 65vh;
+      max-width: 1200px;
+      max-height: 675px;
+      border-radius: 16px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
+    }
+
+    #player {
+      width: 100%;
+      height: 100%;
+      border: none;
+      pointer-events: auto;
+    }
+
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 4;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .ui-layer * {
+      pointer-events: auto;
+    }
+
+    .bottom-detector {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 150px;
+      z-index: 5;
+      pointer-events: auto;
+      background: transparent;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      background-color: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 20px;
+      padding: 10px 20px;
+      width: fit-content;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      user-select: none;
+      display: flex;
+      align-items: center;
+    }
+
+    .sync-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #4facfe;
+      margin-left: 8px;
+      display: inline-block;
+      animation: pulse 2s infinite;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .sync-indicator.active {
+      opacity: 1;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(79, 172, 254, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(79, 172, 254, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(79, 172, 254, 0); }
+    }
+
+    .subtitle-menu, .feature-menu {
+      position: absolute;
+      bottom: 95px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      padding: 8px;
+      width: 190px;
+      max-height: 220px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 10;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    }
+
+    .subtitle-menu { right: 24px; }
+    .feature-menu { right: 120px; width: 240px; }
+
+    .subtitle-menu.active, .feature-menu.active {
+      display: flex;
+    }
+
+    .subtitle-option, .feature-option {
+      background: transparent;
+      border: none;
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+
+    .subtitle-option:hover, .feature-option:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #4facfe;
+    }
+
+    .feature-option.active-state {
+      color: #4facfe;
+      font-weight: bold;
+    }
+
+    .history-modal {
+      position: absolute;
+      bottom: 130px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 14px;
+      padding: 12px;
+      width: 320px;
+      max-height: 350px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 25;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    }
+
+    .history-modal.active {
+      display: flex;
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 280px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+    }
+
+    .history-item {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .history-item:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: #4facfe;
+    }
+
+    .history-title {
+      font-size: 13px;
+      font-weight: bold;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .history-info {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .playlist-wrapper {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      width: 320px;
+      max-height: calc(100vh - 40px);
+    }
+
+    .playlist-btn-container {
+      width: 120px;
+      height: 40px;
+      background-color: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      transition: width 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+
+    .playlist-btn-container.expanded {
+      width: 320px;
+      background-color: rgba(0, 0, 0, 0.85);
+      border-color: #4facfe;
+    }
+
+    .playlist-btn-container.error-shake {
+      animation: shake 0.4s ease-in-out;
+      border-color: #ff4d4d !important;
+      background-color: rgba(255, 0, 0, 0.4) !important;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-10px); }
+      40%, 80% { transform: translateX(10px); }
+    }
+
+    .btn-label {
+      font-size: 16px;
+      font-weight: bold;
+      white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      user-select: none;
+    }
+
+    .url-input {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      padding: 0 15px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .playlist-btn-container.expanded .btn-label {
+      display: none;
+    }
+
+    .playlist-btn-container.expanded .url-input {
+      display: block;
+    }
+
+    .song-list {
+      margin-top: 15px;
+      width: 100%;
+      max-height: calc(100vh - 100px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+    }
+
+    .song-list::-webkit-scrollbar, .subtitle-menu::-webkit-scrollbar, .feature-menu::-webkit-scrollbar, .history-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .song-list::-webkit-scrollbar-track, .subtitle-menu::-webkit-scrollbar-track, .feature-menu::-webkit-scrollbar-track, .history-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+    }
+    .song-list::-webkit-scrollbar-thumb, .subtitle-menu::-webkit-scrollbar-thumb, .feature-menu::-webkit-scrollbar-thumb, .history-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    .song-item-wrapper {
+      position: relative;
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      background: transparent;
+      transition: background-color 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .song-item-wrapper.last-song-warning {
+      background: rgba(255, 0, 0, 0.85);
+      animation: flashWarning 0.4s ease-in-out;
+    }
+
+    .song-item-wrapper.deleting {
+      background: rgba(255, 0, 0, 0.8);
+    }
+
+    @keyframes flashWarning {
+      0%, 100% { background-color: rgba(255, 0, 0, 0.2); }
+      50% { background-color: rgba(255, 0, 0, 1); }
+    }
+
+    .delete-background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding-left: 15px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: bold;
+      z-index: 1;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .song-item-wrapper.active-drag .delete-background {
+      opacity: 1;
+    }
+
+    .song-item {
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(5px);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      overflow: hidden;
+      white-space: nowrap;
+      border-left: 3px solid #4facfe;
+      position: relative;
+      z-index: 2;
+      cursor: grab;
+      user-select: none;
+      touch-action: pan-y;
+    }
+
+    .song-item:active {
+      cursor: grabbing;
+    }
+
+    .marquee {
+      display: inline-block;
+      white-space: nowrap;
+      will-change: transform;
+      animation: marquee 10s linear infinite;
+    }
+
+    @keyframes marquee {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .bottom-container {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 6;
+      transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease;
+    }
+
+    .bottom-container.auto-hidden {
+      transform: translateY(120px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .control-bar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      background-color: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 16px;
+      padding: 12px 24px;
+      width: fit-content;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      user-select: none;
+    }
+
+    .timeline-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.9);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    .time-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 280px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .time-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4facfe;
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+
+    .buttons-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .control-btn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      color: #fff;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: #4facfe;
+    }
+
+    .control-btn:active {
+      transform: scale(0.95);
+    }
+
+    .control-btn.active {
+      background: rgba(79, 172, 254, 0.4);
+      border-color: #4facfe;
+    }
+
+    .mobile-playlist-modal {
+      position: absolute;
+      top: 70px;
+      right: 12px;
+      width: calc(100vw - 24px);
+      max-width: 320px;
+      max-height: 50vh;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 14px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 20;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    }
+
+    .mobile-playlist-modal.active {
+      display: flex;
+    }
+
+    .modal-header {
+      font-size: 13px;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.7);
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media screen and (max-width: 768px) {
+      .ui-layer { padding: 12px; }
+      .header-title { font-size: 13px; padding: 6px 12px; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .playlist-wrapper { top: 12px; right: 12px; width: auto; }
+      .playlist-btn-container { width: 105px; height: 36px; }
+      .playlist-btn-container.expanded { width: calc(100vw - 24px); max-width: 300px; }
+      .song-list { display: none !important; }
+      .control-bar { width: 100%; padding: 10px 14px; border-radius: 14px; gap: 8px; }
+      .time-slider { width: 100%; flex-grow: 1; }
+      .timeline-container { width: 100%; justify-content: space-between; gap: 8px; }
+      .buttons-container { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+      .control-btn { flex: 1 1 21%; min-width: 60px; padding: 8px 4px; font-size: 12px; text-align: center; }
+      .subtitle-menu, .feature-menu { bottom: 125px; right: 12px; width: calc(100vw - 24px); max-width: 240px; }
+      .history-modal { bottom: 125px; left: 12px; width: calc(100vw - 24px); max-width: 300px; }
+    }
+  </style>
+</head>
+<body id="app-body">
+
+  <div id="player-container">
+    <div id="player"></div>
+  </div>
+
+  <div class="ui-layer" id="uiLayer">
+    <div class="header-title" id="headerTitle">
+      <span id="titleText">Qimei Music Web</span>
+      <span id="syncIndicator" class="sync-indicator"></span>
+    </div>
+
+    <div class="playlist-wrapper">
+      <div class="playlist-btn-container" id="inputContainer">
+        <span class="btn-label" id="playlistBtnLabel">播放列表</span>
+        <input type="text" class="url-input" id="urlInput" placeholder="請輸入YT連結 (Enter送出)">
+      </div>
+
+      <div class="song-list" id="songList"></div>
+
+      <div class="mobile-playlist-modal" id="mobilePlaylistModal">
+        <div class="modal-header">
+          <span>播放清單管理</span>
+          <span style="font-size: 11px; color: #4facfe;">向右滑動可刪除</span>
+        </div>
+        <div class="song-list" id="mobileSongList" style="display: flex !important; max-height: 40vh;"></div>
+      </div>
+    </div>
+
+    <!-- 底部專屬隱形感應區塊 -->
+    <div class="bottom-detector" id="bottomDetector"></div>
+
+    <div class="bottom-container" id="bottomContainer">
+      <!-- 歷史播放清單彈窗 -->
+      <div class="history-modal" id="historyModal">
+        <div class="modal-header">
+          <span>歷史播放紀錄 (雲端同步)</span>
+          <span style="font-size: 11px; color: #4facfe; cursor: pointer;" id="closeHistory">關閉</span>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+
+      <div class="feature-menu" id="featureMenu">
+        <button class="feature-option" id="autoHideBtn">自動隱藏介面: 關閉</button>
+        <button class="feature-option" id="historyBtn">歷史播放清單</button>
+      </div>
+      <div class="subtitle-menu" id="subtitleMenu"></div>
+
+      <div class="control-bar">
+        <div class="timeline-container">
+          <span id="currentTime">00:00</span>
+          <input type="range" id="timeSlider" class="time-slider" value="0" min="0" max="100" step="0.1">
+          <span id="durationTime">00:00</span>
+        </div>
+        <div class="buttons-container">
+          <button class="control-btn" id="playPauseBtn">暫停</button>
+          <button class="control-btn" id="skipBtn">切歌</button>
+          <button class="control-btn" id="speedBtn">1.0x</button>
+          <button class="control-btn" id="featureBtn">功能</button>
+          <button class="control-btn" id="subtitleBtn">字幕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwmIW-BQypEkrrWrsFPcnc8IKDArD6wOvmOS29A0jWguTyVSo6ZHJmiM2i-g02DJpA/exec"; 
+
+    let player;
+    let playlist = [];
+    let playHistory = [];
+    let isPlaying = false;
+    let isApiReady = false;
+    let isUserDraggingSlider = false;
+    let isSubtitleActive = false;
+    let isSyncLocked = false; // 防鎖機制：避免點歌時被背景 getState 舊資料覆蓋
+    let timeUpdateInterval = null;
+    let syncInterval = null;
+    let currentSpeedIndex = 0;
+    const speeds = [1.0, 1.25, 1.5, 2.0, 0.5];
+
+    let isAutoHiderEnabled = false;
+    let autoHideTimer = null;
+    const AUTO_HIDE_DELAY = 3000;
+
+    const languageMap = {
+      'zh-Hant': '繁體中文', 'zh-Hans': '簡體中文', 'zh-TW': '繁體中文 (台灣)',
+      'zh-CN': '簡體中文 (中國)', 'zh-HK': '繁體中文 (香港)', 'zh': '中文',
+      'en': '英文', 'en-US': '英文 (美國)', 'en-GB': '英文 (英國)',
+      'ja': '日文', 'ko': '韓文', 'es': '西班牙文', 'fr': '法文',
+      'de': '德文', 'ru': '俄文', 'vi': '越南文', 'th': '泰文', 'id': '印尼文'
+    };
+
+    const urlInput = document.getElementById('urlInput');
+    const inputContainer = document.getElementById('inputContainer');
+    const playlistBtnLabel = document.getElementById('playlistBtnLabel');
+    const headerTitle = document.getElementById('headerTitle');
+    const titleText = document.getElementById('titleText');
+    const syncIndicator = document.getElementById('syncIndicator');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const speedBtn = document.getElementById('speedBtn');
+    const featureBtn = document.getElementById('featureBtn');
+    const featureMenu = document.getElementById('featureMenu');
+    const autoHideBtn = document.getElementById('autoHideBtn');
+    const historyBtn = document.getElementById('historyBtn');
+    const historyModal = document.getElementById('historyModal');
+    const historyList = document.getElementById('historyList');
+    const closeHistory = document.getElementById('closeHistory');
+    const subtitleBtn = document.getElementById('subtitleBtn');
+    const subtitleMenu = document.getElementById('subtitleMenu');
+    const mobilePlaylistModal = document.getElementById('mobilePlaylistModal');
+    const timeSlider = document.getElementById('timeSlider');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
+    const playerContainer = document.getElementById('player-container');
+    const bottomContainer = document.getElementById('bottomContainer');
+    const bottomDetector = document.getElementById('bottomDetector');
+
+    let playlistPressTimer = null;
+    let isPlaylistLongPress = false;
+    const isMobileDevice = () => window.innerWidth <= 768;
+
+    async function apiCall(action, payload = {}) {
+      if (!GAS_URL || GAS_URL.includes("在此輸入")) return;
+      if (syncIndicator) syncIndicator.classList.add('active');
+      
+      // 當進行寫入動作時鎖定同步，避免 getState 覆蓋本地變更
+      if (['addSong', 'syncPlaylist', 'moveToHistory'].includes(action)) {
+        isSyncLocked = true;
+      }
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify({ action, ...payload })
+        });
+
+        const text = await res.text();
+
+        // 檢查回應是否為 HTML 網頁 (代表 Google 傳回登入頁或 Apps Script 執行錯誤頁)
+        if (!text || text.trim().startsWith('<')) {
+          console.warn("雲端同步收到 HTML 頁面 (請確認 GAS 權限設定為「所有人」):", text.slice(0, 100));
+          return;
+        }
+
+        const data = JSON.parse(text);
+
+        // 1. 同步播放清單 (若處於同步鎖狀態且為 getState 請求則跳過，確保本地最新點歌資料不被覆蓋)
+        if (action === 'getState' && isSyncLocked) {
+          // 暫時跳過本次 getState 覆蓋
+        } else if (data.playlist && JSON.stringify(data.playlist) !== JSON.stringify(playlist)) {
+          playlist = data.playlist;
+          saveLocalPlaylist();
+          updatePlaylistUI();
+
+          if (playlist.length > 0 && isApiReady && player && typeof player.getVideoData === 'function') {
+            const currentVideoData = player.getVideoData();
+            const currentPlayingId = currentVideoData ? currentVideoData.video_id : null;
+            const targetId = playlist[0].id;
+
+            if (currentPlayingId !== targetId) {
+              isPlaying = true;
+              playPauseBtn.textContent = '暫停';
+              player.loadVideoById(targetId);
+              player.playVideo();
+              updateCurrentSongDisplay();
+
+              if (!isSubtitleActive && typeof player.unloadModule === 'function') {
+                player.unloadModule('captions');
+              }
+            }
+          }
+        }
+
+        // 2. 同步歷史紀錄
+        if (data.history && Array.isArray(data.history)) {
+          const existingMap = new Map();
+          playHistory.forEach(h => existingMap.set(h.id, h));
+
+          playHistory = data.history.map(h => {
+            const existing = existingMap.get(h.id);
+            return {
+              id: h.id,
+              title: h.title,
+              requestTime: existing ? existing.requestTime : '雲端紀錄',
+              videoDuration: existing ? existing.videoDuration : '--:--'
+            };
+          });
+
+          if (historyModal.classList.contains('active')) {
+            renderHistoryUI();
+          }
+        }
+      } catch (e) {
+        console.error("雲端同步失敗", e);
+      } finally {
+        if (['addSong', 'syncPlaylist', 'moveToHistory'].includes(action)) {
+          // 解鎖同步
+          setTimeout(() => { isSyncLocked = false; }, 1500);
+        }
+        setTimeout(() => {
+          if (syncIndicator) syncIndicator.classList.remove('active');
+        }, 500);
+      }
+    }
+
+    function loadSavedPlaylist() {
+      try {
+        const saved = localStorage.getItem('qimei_music_playlist');
+        if (saved) {
+          playlist = JSON.parse(saved);
+          updatePlaylistUI();
+        }
+      } catch (e) {}
+      apiCall('getState');
+    }
+
+    function saveLocalPlaylist() {
+      try {
+        localStorage.setItem('qimei_music_playlist', JSON.stringify(playlist));
+      } catch (e) {}
+    }
+
+    function startCloudSync() {
+      if (syncInterval) clearInterval(syncInterval);
+      syncInterval = setInterval(() => {
+        apiCall('getState');
+      }, 10000);
+    }
+
+    inputContainer.addEventListener('mousedown', () => {
+      if (inputContainer.classList.contains('expanded')) return;
+      isPlaylistLongPress = false;
+      playlistPressTimer = setTimeout(() => {
+        isPlaylistLongPress = true;
+        if (isMobileDevice()) toggleMobilePlaylistModal();
+      }, 500);
+    });
+
+    inputContainer.addEventListener('touchstart', () => {
+      if (inputContainer.classList.contains('expanded')) return;
+      isPlaylistLongPress = false;
+      playlistPressTimer = setTimeout(() => {
+        isPlaylistLongPress = true;
+        if (isMobileDevice()) toggleMobilePlaylistModal();
+      }, 500);
+    }, { passive: true });
+
+    inputContainer.addEventListener('mouseup', () => {
+      clearTimeout(playlistPressTimer);
+      if (!isPlaylistLongPress && !inputContainer.classList.contains('expanded')) {
+        handlePlaylistClickAction();
+      }
+    });
+
+    inputContainer.addEventListener('touchend', () => {
+      clearTimeout(playlistPressTimer);
+      if (!isPlaylistLongPress && !inputContainer.classList.contains('expanded')) {
+        handlePlaylistClickAction();
+      }
+    });
+
+    async function handlePlaylistClickAction() {
+      expandInput();
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        try {
+          const clipText = await navigator.clipboard.readText();
+          if (clipText && extractVideoId(clipText.trim())) {
+            urlInput.value = clipText.trim();
+            processYouTubeUrl(urlInput.value);
+          }
+        } catch (err) {}
+      }
+    }
+
+    function toggleMobilePlaylistModal() {
+      mobilePlaylistModal.classList.toggle('active');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!inputContainer.contains(e.target) && !mobilePlaylistModal.contains(e.target)) {
+        mobilePlaylistModal.classList.remove('active');
+      }
+    });
+
+    playPauseBtn.addEventListener('click', togglePlayPause);
+    skipBtn.addEventListener('click', skipToNextSong);
+    speedBtn.addEventListener('click', cyclePlaybackSpeed);
+
+    featureBtn.addEventListener('click', () => {
+      featureMenu.classList.toggle('active');
+      subtitleMenu.classList.remove('active');
+    });
+
+    autoHideBtn.addEventListener('click', () => {
+      isAutoHiderEnabled = !isAutoHiderEnabled;
+      if (isAutoHiderEnabled) {
+        autoHideBtn.textContent = '自動隱藏介面: 開啟';
+        autoHideBtn.classList.add('active-state');
+        resetAutoHideTimer();
+      } else {
+        autoHideBtn.textContent = '自動隱藏介面: 關閉';
+        autoHideBtn.classList.remove('active-state');
+        cancelAutoHideTimer();
+        bottomContainer.classList.remove('auto-hidden');
+      }
+      featureMenu.classList.remove('active');
+    });
+
+    historyBtn.addEventListener('click', () => {
+      featureMenu.classList.remove('active');
+      renderHistoryUI();
+      historyModal.classList.toggle('active');
+    });
+
+    closeHistory.addEventListener('click', () => {
+      historyModal.classList.remove('active');
+    });
+
+    bottomDetector.addEventListener('mouseenter', () => {
+      if (!isAutoHiderEnabled) return;
+      wakeUpUI();
+    });
+
+    bottomDetector.addEventListener('pointerenter', () => {
+      if (!isAutoHiderEnabled) return;
+      wakeUpUI();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isAutoHiderEnabled) return;
+      if (e.clientY >= window.innerHeight - 150) {
+        wakeUpUI();
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isAutoHiderEnabled) return;
+      if (e.clientY >= window.innerHeight - 150) {
+        wakeUpUI();
+      }
+    });
+
+    window.addEventListener('touchstart', () => {
+      wakeUpUI();
+    }, { passive: true });
+
+    function wakeUpUI() {
+      if (!isAutoHiderEnabled) return;
+      bottomContainer.classList.remove('auto-hidden');
+      resetAutoHideTimer();
+    }
+
+    function resetAutoHideTimer() {
+      if (!isAutoHiderEnabled) return;
+      if (autoHideTimer) clearTimeout(autoHideTimer);
+      autoHideTimer = setTimeout(() => {
+        if (featureMenu.classList.contains('active') || historyModal.classList.contains('active') || subtitleMenu.classList.contains('active') || mobilePlaylistModal.classList.contains('active')) {
+          resetAutoHideTimer();
+          return;
+        }
+        bottomContainer.classList.add('auto-hidden');
+      }, AUTO_HIDE_DELAY);
+    }
+
+    function cancelAutoHideTimer() {
+      if (autoHideTimer) clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
+
+    let subtitlePressTimer = null;
+    let isSubtitleLongPress = false;
+
+    subtitleBtn.addEventListener('mousedown', () => {
+      isSubtitleLongPress = false;
+      subtitlePressTimer = setTimeout(() => {
+        isSubtitleLongPress = true;
+        openSubtitleLanguageMenu();
+      }, 500);
+    });
+
+    subtitleBtn.addEventListener('touchstart', () => {
+      isSubtitleLongPress = false;
+      subtitlePressTimer = setTimeout(() => {
+        isSubtitleLongPress = true;
+        openSubtitleLanguageMenu();
+      }, 500);
+    }, { passive: true });
+
+    subtitleBtn.addEventListener('mouseup', () => {
+      clearTimeout(subtitlePressTimer);
+      if (!isSubtitleLongPress) toggleSubtitleMode();
+    });
+
+    subtitleBtn.addEventListener('touchend', () => {
+      clearTimeout(subtitlePressTimer);
+      if (!isSubtitleLongPress) toggleSubtitleMode();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!subtitleBtn.contains(e.target) && !subtitleMenu.contains(e.target)) {
+        subtitleMenu.classList.remove('active');
+      }
+      if (!featureBtn.contains(e.target) && !featureMenu.contains(e.target) && !historyModal.contains(e.target)) {
+        featureMenu.classList.remove('active');
+      }
+    });
+
+    timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
+    timeSlider.addEventListener('touchstart', () => { isUserDraggingSlider = true; });
+
+    timeSlider.addEventListener('input', (e) => {
+      if (player && isApiReady && typeof player.getDuration === 'function') {
+        const duration = player.getDuration();
+        const targetTime = (e.target.value / 100) * duration;
+        currentTimeEl.textContent = formatTime(targetTime);
+      }
+    });
+
+    timeSlider.addEventListener('change', (e) => {
+      if (player && isApiReady && typeof player.seekTo === 'function') {
+        const duration = player.getDuration();
+        const targetTime = (e.target.value / 100) * duration;
+        player.seekTo(targetTime, true);
+      }
+      isUserDraggingSlider = false;
+    });
+
+    function getOriginParam() {
+      try {
+        return (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '*';
+      } catch (e) {
+        return '*';
+      }
+    }
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        host: 'https://www.youtube-nocookie.com',
+        playerVars: {
+          'autoplay': 1,
+          'controls': 0,
+          'disablekb': 1,
+          'fs': 0,
+          'modestbranding': 1,
+          'rel': 0,
+          'playsinline': 1,
+          'cc_load_policy': 0,
+          'enablejsapi': 1,
+          'origin': getOriginParam()
+        },
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange,
+          'onError': onPlayerError
+        }
+      });
+    }
+
+    function onPlayerReady() {
+      isApiReady = true;
+      loadSavedPlaylist();
+      startCloudSync();
+      startTimeTracker();
+      isSubtitleActive = false;
+      updateSubtitleUIState();
+      if (player && typeof player.unloadModule === 'function') {
+        player.unloadModule('captions');
+      }
+    }
+
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.ENDED) {
+        skipToNextSong();
+      } else if (event.data === YT.PlayerState.PLAYING) {
+        isPlaying = true;
+        playPauseBtn.textContent = '暫停';
+
+        if (!isSubtitleActive && player && typeof player.unloadModule === 'function') {
+          player.unloadModule('captions');
+        }
+      } else if (event.data === YT.PlayerState.PAUSED) {
+        isPlaying = false;
+        playPauseBtn.textContent = '播放';
+      }
+    }
+
+    function onPlayerError(event) {
+      console.warn("YouTube 播放器回應錯誤代碼:", event.data);
+      triggerErrorAnimation();
+      
+      // 只有在特定無法嵌入或找不到影片的嚴重錯誤時才自動切歌，避免因瀏覽器自動播放限制誤刪歌曲
+      if ([100, 101, 150].includes(event.data)) {
+        console.warn("影片無法嵌入或找不到，自動切換至下一首歌曲");
+        skipToNextSong();
+      } else if (event.data === 5) {
+        // HTML5 播放器錯誤，嘗試重新播放
+        if (player && typeof player.playVideo === 'function') {
+          player.playVideo();
+        }
+      }
+    }
+
+    function skipToNextSong() {
+      if (playlist.length <= 1) {
+        if (playlist.length === 1) {
+          apiCall('moveToHistory');
+        }
+        playlist = [];
+        saveLocalPlaylist();
+        if (player && isApiReady && typeof player.stopVideo === 'function') {
+          player.stopVideo();
+        }
+        isPlaying = false;
+        playPauseBtn.textContent = '播放';
+        updatePlaylistUI();
+        if (titleText) titleText.textContent = 'Qimei Music Web';
+        playlistBtnLabel.textContent = '播放列表';
+      } else {
+        apiCall('moveToHistory');
+        playlist.shift();
+        saveLocalPlaylist();
+        updatePlaylistUI();
+        isPlaying = false;
+        checkAndPlayNext();
+      }
+    }
+
+    function checkAndPlayNext() {
+      if (playlist.length > 0 && isApiReady && player && typeof player.loadVideoById === 'function') {
+        isPlaying = true;
+        playPauseBtn.textContent = '暫停';
+        player.loadVideoById(playlist[0].id);
+        player.playVideo();
+        updateCurrentSongDisplay();
+
+        if (!isSubtitleActive && typeof player.unloadModule === 'function') {
+          player.unloadModule('captions');
+        }
+      } else {
+        if (titleText) titleText.textContent = 'Qimei Music Web';
+        playlistBtnLabel.textContent = '播放列表';
+      }
+    }
+
+    function updateCurrentSongDisplay() {
+      if (playlist.length > 0) {
+        if (titleText) titleText.textContent = playlist[0].title;
+        playlistBtnLabel.textContent = `播放中 (${playlist.length})`;
+      } else {
+        if (titleText) titleText.textContent = 'Qimei Music Web';
+        playlistBtnLabel.textContent = '播放列表';
+      }
+    }
+
+    function toggleSubtitleMode() {
+      isSubtitleActive = !isSubtitleActive;
+      if (player && isApiReady) {
+        if (isSubtitleActive) {
+          if (typeof player.loadModule === 'function') player.loadModule('captions');
+          player.setOption('captions', 'track', { languageCode: 'zh-Hant' });
+        } else {
+          if (typeof player.unloadModule === 'function') player.unloadModule('captions');
+        }
+      }
+      updateSubtitleUIState();
+    }
+
+    function updateSubtitleUIState() {
+      if (isSubtitleActive) {
+        playerContainer.classList.add('subtitle-active');
+        subtitleBtn.classList.add('active');
+      } else {
+        playerContainer.classList.remove('subtitle-active');
+        subtitleBtn.classList.remove('active');
+        subtitleMenu.classList.remove('active');
+      }
+    }
+
+    function normalizeLangCode(code) {
+      if (!code) return '';
+      return String(code).toLowerCase().replace(/_/g, '-').trim();
+    }
+
+    function openSubtitleLanguageMenu() {
+      if (!player || !isApiReady || typeof player.getOptions !== 'function') return;
+      subtitleMenu.innerHTML = '';
+      let availableTracks = [];
+      try {
+        availableTracks = player.getOption('captions', 'tracklist') || [];
+      } catch (e) {}
+
+      if (availableTracks.length === 0) {
+        const noSubOption = document.createElement('button');
+        noSubOption.className = 'subtitle-option';
+        noSubOption.textContent = '無可用字幕';
+        noSubOption.onclick = () => subtitleMenu.classList.remove('active');
+        subtitleMenu.appendChild(noSubOption);
+      } else {
+        const offOption = document.createElement('button');
+        offOption.className = 'subtitle-option';
+        offOption.textContent = '關閉字幕';
+        offOption.onclick = () => {
+          isSubtitleActive = false;
+          if (typeof player.unloadModule === 'function') player.unloadModule('captions');
+          updateSubtitleUIState();
+          subtitleMenu.classList.remove('active');
+        };
+        subtitleMenu.appendChild(offOption);
+
+        availableTracks.forEach(track => {
+          const rawCode = String(track.languageCode || '').trim();
+          const normalizedCode = normalizeLangCode(rawCode);
+          let langName = languageMap[rawCode] || languageMap[normalizedCode] || track.name || rawCode;
+
+          const btn = document.createElement('button');
+          btn.className = 'subtitle-option';
+          btn.textContent = langName;
+          btn.onclick = () => {
+            isSubtitleActive = true;
+            if (typeof player.loadModule === 'function') player.loadModule('captions');
+            player.setOption('captions', 'track', { languageCode: rawCode });
+            updateSubtitleUIState();
+            subtitleMenu.classList.remove('active');
+          };
+          subtitleMenu.appendChild(btn);
+        });
+      }
+      subtitleMenu.classList.add('active');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      wakeUpUI();
+      const isInputActive = document.activeElement === urlInput;
+      if ((e.key === 'n' || e.key === 'N') && !isInputActive) {
+        e.preventDefault();
+        expandInput();
+      } else if ((e.key === 'l' || e.key === 'L') && !isInputActive) {
+        e.preventDefault();
+        skipToNextSong();
+      } else if (e.code === 'Space' && !isInputActive) {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key === 'Escape') {
+        collapseInput();
+        subtitleMenu.classList.remove('active');
+        featureMenu.classList.remove('active');
+        mobilePlaylistModal.classList.remove('active');
+        historyModal.classList.remove('active');
+      }
+    });
+
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const url = urlInput.value.trim();
+        if (url) processYouTubeUrl(url);
+      }
+    });
+
+    function togglePlayPause() {
+      if (playlist.length === 0) return;
+      if (player && isApiReady) {
+        const state = player.getPlayerState();
+        if (state === YT.PlayerState.PLAYING) {
+          player.pauseVideo();
+          isPlaying = false;
+          playPauseBtn.textContent = '播放';
+        } else {
+          player.playVideo();
+          isPlaying = true;
+          playPauseBtn.textContent = '暫停';
+        }
+      }
+    }
+
+    function cyclePlaybackSpeed() {
+      if (player && isApiReady && typeof player.setPlaybackRate === 'function') {
+        currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+        const newSpeed = speeds[currentSpeedIndex];
+        player.setPlaybackRate(newSpeed);
+        speedBtn.textContent = `${newSpeed}x`;
+      }
+    }
+
+    function startTimeTracker() {
+      if (timeUpdateInterval) clearInterval(timeUpdateInterval);
+      timeUpdateInterval = setInterval(() => {
+        if (player && isApiReady && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+          const currentTime = player.getCurrentTime() || 0;
+          const duration = player.getDuration() || 0;
+          currentTimeEl.textContent = formatTime(currentTime);
+          durationTimeEl.textContent = formatTime(duration);
+          if (!isUserDraggingSlider && duration > 0) {
+            timeSlider.value = (currentTime / duration) * 100;
+          }
+        }
+      }, 500);
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function expandInput() {
+      inputContainer.classList.add('expanded');
+      urlInput.focus();
+    }
+
+    function collapseInput() {
+      inputContainer.classList.remove('expanded');
+      urlInput.value = '';
+      urlInput.blur();
+    }
+
+    function extractVideoId(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    async function fetchVideoDetails(videoId) {
+      let title = `YouTube Track (${videoId})`;
+      let durationStr = '00:00';
+
+      try {
+        const res = await fetch(`https://www.youtube-nocookie.com/oembed?url=https://www.youtube-nocookie.com/watch?v=${videoId}&format=json`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.title) title = data.title;
+        }
+      } catch (e) {}
+
+      if (title === `YouTube Track (${videoId})`) {
+        try {
+          const res = await fetch(`https://noembed.com/embed?url=https://www.youtube-nocookie.com/watch?v=${videoId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.title) title = data.title;
+          }
+        } catch (e) {}
+      }
+
+      durationStr = await fetchDurationInBackground(videoId);
+      return { title, durationStr };
+    }
+
+    function fetchDurationInBackground(videoId) {
+      return new Promise((resolve) => {
+        if (player && isApiReady && typeof player.getDuration === 'function' && playlist.length > 0 && playlist[0].id === videoId) {
+          const d = player.getDuration();
+          if (d > 0) {
+            resolve(formatTime(d));
+            return;
+          }
+        }
+
+        const tempDivId = 'temp_duration_getter_' + Date.now();
+        const div = document.createElement('div');
+        div.id = tempDivId;
+        div.style.display = 'none';
+        document.body.appendChild(div);
+
+        let tempPlayer;
+        let resolved = false;
+
+        const cleanup = () => {
+          if (!resolved) {
+            resolved = true;
+            try {
+              if (tempPlayer && typeof tempPlayer.destroy === 'function') tempPlayer.destroy();
+            } catch (err) {}
+            if (div.parentNode) div.parentNode.removeChild(div);
+            resolve('03:30');
+          }
+        };
+
+        const timeoutTimer = setTimeout(cleanup, 5000);
+
+        try {
+          tempPlayer = new YT.Player(tempDivId, {
+            host: 'https://www.youtube-nocookie.com',
+            height: '1',
+            width: '1',
+            videoId: videoId,
+            playerVars: { 
+              'autoplay': 0, 
+              'controls': 0,
+              'enablejsapi': 1,
+              'origin': getOriginParam()
+            },
+            events: {
+              'onReady': (event) => {
+                try {
+                  const dur = event.target.getDuration();
+                  if (dur && dur > 0) {
+                    if (!resolved) {
+                      resolved = true;
+                      clearTimeout(timeoutTimer);
+                      const formatted = formatTime(dur);
+                      try { event.target.destroy(); } catch (e) {}
+                      if (div.parentNode) div.parentNode.removeChild(div);
+                      resolve(formatted);
+                    }
+                  } else {
+                    setTimeout(() => {
+                      try {
+                        const d2 = event.target.getDuration();
+                        if (!resolved) {
+                          resolved = true;
+                          clearTimeout(timeoutTimer);
+                          const formatted2 = (d2 && d2 > 0) ? formatTime(d2) : '03:30';
+                          try { event.target.destroy(); } catch (e) {}
+                          if (div.parentNode) div.parentNode.removeChild(div);
+                          resolve(formatted2);
+                        }
+                      } catch (err) {
+                        cleanup();
+                      }
+                    }, 1000);
+                  }
+                } catch (err) {
+                  cleanup();
+                }
+              },
+              'onError': () => {
+                clearTimeout(timeoutTimer);
+                cleanup();
+              }
+            }
+          });
+        } catch (e) {
+          clearTimeout(timeoutTimer);
+          cleanup();
+        }
+      });
+    }
+
+    async function processYouTubeUrl(url) {
+      const videoId = extractVideoId(url);
+      if (!videoId) {
+        triggerErrorAnimation();
+        return;
+      }
+
+      const { title: videoTitle, durationStr } = await fetchVideoDetails(videoId);
+      const wasEmpty = playlist.length === 0;
+
+      const now = new Date();
+      const requestTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      const newSong = { id: videoId, title: videoTitle };
+      playlist.push(newSong);
+      playHistory.unshift({
+        id: videoId,
+        title: videoTitle,
+        requestTime: requestTimeStr,
+        videoDuration: durationStr
+      });
+
+      saveLocalPlaylist();
+      updatePlaylistUI();
+      collapseInput();
+
+      if (wasEmpty && isApiReady && player && typeof player.loadVideoById === 'function') {
+        isPlaying = true;
+        playPauseBtn.textContent = '暫停';
+        player.loadVideoById(playlist[0].id);
+        player.playVideo();
+        updateCurrentSongDisplay();
+
+        if (!isSubtitleActive && typeof player.unloadModule === 'function') {
+          player.unloadModule('captions');
+        }
+      } else {
+        updateCurrentSongDisplay();
+      }
+
+      apiCall('addSong', { song: newSong });
+    }
+
+    function renderHistoryUI() {
+      historyList.innerHTML = '';
+      if (playHistory.length === 0) {
+        const emptyItem = document.createElement('div');
+        emptyItem.className = 'history-item';
+        emptyItem.style.textAlign = 'center';
+        emptyItem.style.color = 'rgba(255,255,255,0.4)';
+        emptyItem.textContent = '目前尚無點歌紀錄';
+        historyList.appendChild(emptyItem);
+        return;
+      }
+
+      playHistory.forEach(item => {
+        const historyEl = document.createElement('div');
+        historyEl.className = 'history-item';
+        historyEl.innerHTML = `
+          <div class="history-title">${item.title}</div>
+          <div class="history-info">
+            <span>點歌時間: ${item.requestTime}</span>
+            <span>影片時長: ${item.videoDuration}</span>
+          </div>
+        `;
+        historyEl.onclick = () => {
+          addSongDirectly(item.id, item.title);
+          historyModal.classList.remove('active');
+        };
+        historyList.appendChild(historyEl);
+      });
+    }
+
+    function addSongDirectly(videoId, videoTitle) {
+      const wasEmpty = playlist.length === 0;
+      const newSong = { id: videoId, title: videoTitle };
+      playlist.push(newSong);
+      saveLocalPlaylist();
+      updatePlaylistUI();
+
+      if (wasEmpty && isApiReady && player && typeof player.loadVideoById === 'function') {
+        isPlaying = true;
+        playPauseBtn.textContent = '暫停';
+        player.loadVideoById(playlist[0].id);
+        player.playVideo();
+        updateCurrentSongDisplay();
+
+        if (!isSubtitleActive && typeof player.unloadModule === 'function') {
+          player.unloadModule('captions');
+        }
+      } else {
+        updateCurrentSongDisplay();
+      }
+
+      apiCall('addSong', { song: newSong });
+    }
+
+    function triggerErrorAnimation() {
+      inputContainer.classList.add('error-shake');
+      setTimeout(() => inputContainer.classList.remove('error-shake'), 500);
+    }
+
+    function updatePlaylistUI() {
+      updateCurrentSongDisplay();
+      renderListToContainer(document.getElementById('songList'));
+      renderListToContainer(document.getElementById('mobileSongList'));
+    }
+
+    function renderListToContainer(containerEl) {
+      if (!containerEl) return;
+      containerEl.innerHTML = '';
+
+      playlist.forEach((song, index) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'song-item-wrapper';
+
+        const deleteBg = document.createElement('div');
+        deleteBg.className = 'delete-background';
+        deleteBg.textContent = playlist.length === 1 ? '⚠️ 這是最後一首了' : '🗑️ 刪除';
+        wrapper.appendChild(deleteBg);
+
+        const item = document.createElement('div');
+        item.className = 'song-item';
+
+        const prefix = index === 0 ? '▶ ' : `${index + 1}. `;
+        const fullText = prefix + song.title;
+
+        if (fullText.length > 20) {
+          item.innerHTML = `<div class="marquee">${fullText}&nbsp;&nbsp;&nbsp;&nbsp;${fullText}</div>`;
+        } else {
+          item.textContent = fullText;
+        }
+
+        wrapper.appendChild(item);
+        containerEl.appendChild(wrapper);
+
+        initSwipeToDelete(item, wrapper, index);
+      });
+    }
+
+    function initSwipeToDelete(itemEl, wrapperEl, index) {
+      let startX = 0;
+      let startY = 0;
+      let currentX = 0;
+      let currentY = 0;
+      let isDragging = false;
+      let isHorizontalSwipe = false;
+
+      function onStart(clientX, clientY) {
+        isDragging = true;
+        isHorizontalSwipe = false;
+        startX = clientX;
+        startY = clientY;
+        itemEl.style.transition = 'none';
+      }
+
+      function onMove(clientX, clientY) {
+        if (!isDragging) return;
+        currentX = clientX - startX;
+        currentY = clientY - startY;
+
+        // 判斷是否為水平滑動（避免垂直滾動頁面時誤觸刪除）
+        if (!isHorizontalSwipe) {
+          if (Math.abs(currentX) > Math.abs(currentY) && Math.abs(currentX) > 10) {
+            isHorizontalSwipe = true;
+          } else if (Math.abs(currentY) > 10) {
+            isDragging = false;
+            return;
+          }
+        }
+
+        if (isHorizontalSwipe) {
+          wrapperEl.classList.add('active-drag');
+          if (playlist.length > 1) wrapperEl.classList.add('deleting');
+
+          if (currentX > 0) {
+            itemEl.style.transform = `translateX(${currentX}px)`;
+          } else {
+            itemEl.style.transform = `translateX(0px)`;
+          }
+        }
+      }
+
+      function onEnd() {
+        if (!isDragging && !isHorizontalSwipe) return;
+        isDragging = false;
+        itemEl.style.transition = 'transform 0.3s ease';
+        wrapperEl.classList.remove('active-drag', 'deleting');
+
+        if (isHorizontalSwipe && playlist.length === 1 && currentX > 80) {
+          itemEl.style.transform = `translateX(0px)`;
+          wrapperEl.classList.add('last-song-warning');
+          setTimeout(() => wrapperEl.classList.remove('last-song-warning'), 400);
+        } else if (isHorizontalSwipe && playlist.length > 1 && currentX > 120) {
+          itemEl.style.transform = `translateX(100%)`;
+          setTimeout(() => removeSongAtIndex(index), 250);
+        } else {
+          itemEl.style.transform = `translateX(0px)`;
+        }
+        currentX = 0;
+        currentY = 0;
+        isHorizontalSwipe = false;
+      }
+
+      itemEl.addEventListener('mousedown', (e) => {
+        onStart(e.clientX, e.clientY);
+        const mm = (me) => onMove(me.clientX, me.clientY);
+        const mu = () => {
+          onEnd();
+          window.removeEventListener('mousemove', mm);
+          window.removeEventListener('mouseup', mu);
+        };
+        window.addEventListener('mousemove', mm);
+        window.addEventListener('mouseup', mu);
+      });
+
+      itemEl.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+      itemEl.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+      itemEl.addEventListener('touchend', () => onEnd());
+    }
+
+    function removeSongAtIndex(index) {
+      const isDeletingCurrentPlaying = (index === 0);
+      playlist.splice(index, 1);
+      saveLocalPlaylist();
+      apiCall('syncPlaylist', { playlist });
+      updatePlaylistUI();
+
+      if (isDeletingCurrentPlaying) {
+        isPlaying = false;
+        checkAndPlayNext();
+      }
+    }
+  </script>
+</body>
+</html>
