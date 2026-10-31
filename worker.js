@@ -13,20 +13,6 @@ export default {
       });
     }
 
-    // 路由分流：存取 /control 回傳遙控器前端
-    if (url.pathname === "/control") {
-      return new Response(CONTROL_HTML, {
-        headers: { "Content-Type": "text/html;charset=UTF-8" }
-      });
-    }
-    
-    // 根目錄或 /play 回傳大螢幕播放前端
-    if (url.pathname === "/" || url.pathname === "/play") {
-      return new Response(PLAY_HTML, {
-        headers: { "Content-Type": "text/html;charset=UTF-8" }
-      });
-    }
-
     // WebSocket 路由轉交給 Durable Object
     if (url.pathname === "/ws") {
       const roomId = url.searchParams.get("room") || "default_room";
@@ -35,7 +21,8 @@ export default {
       return stub.fetch(request);
     }
 
-    return new Response("Not Found", { status: 404 });
+    // 如果只是純 Worker 後端，造訪首頁時可以回傳簡單的狀態訊息
+    return new Response("Qimei Karaoke Backend Active", { status: 200 });
   }
 };
 
@@ -82,7 +69,7 @@ export class MyDurableObject {
       }
     }
 
-    return new Response("Qimei Karaoke Server Active", { status: 200 });
+    return new Response("Karaoke Room Active", { status: 200 });
   }
 
   async webSocketMessage(ws, message) {
