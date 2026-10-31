@@ -21,8 +21,17 @@ export default {
       return stub.fetch(request);
     }
 
-    // 如果只是純 Worker 後端，造訪首頁時可以回傳簡單的狀態訊息
-    return new Response("Qimei Karaoke Backend Active", { status: 200 });
+    // 如果訪問根目錄，預設導向播放器 (play.html)
+    if (url.pathname === "/") {
+      return env.ASSETS.fetch(new Request(new URL('/play.html', request.url), request));
+    }
+
+    // 其他靜態檔案 (play.html, control.html 等) 直接由 Cloudflare Assets 提供
+    try {
+      return await env.ASSETS.fetch(request);
+    } catch (e) {
+      return new Response("Not Found", { status: 404 });
+    }
   }
 };
 
