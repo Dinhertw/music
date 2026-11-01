@@ -18,6 +18,13 @@
     .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #4facfe; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: none; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .swal2-popup-dark { background: #1e293b !important; color: #f8fafc !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 1rem !important; }
+    
+    /* 遙控控制列樣式 */
+    .remote-control-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    .time-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; cursor: pointer; }
+    .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #4facfe; cursor: pointer; }
+    .rc-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #fff; padding: 8px 12px; font-size: 13px; font-weight: bold; transition: all 0.2s; }
+    .rc-btn:active { transform: scale(0.95); background: rgba(79, 172, 254, 0.3); border-color: #4facfe; }
   </style>
 </head>
 <body class="flex flex-col h-full">
@@ -28,8 +35,8 @@
         <h1 class="text-lg font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">Qimei Remote</h1>
       </div>
       <div class="flex items-center gap-2">
-        <button id="refreshBtn" onclick="manualRefresh()" class="bg-white/10 hover:bg-white/20 active:scale-95 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all border border-white/10 text-gray-200">🔄 重新整理</button>
         <div id="syncStatus" class="loader"></div>
+        <span id="connectionBadge" class="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">未連線</span>
       </div>
     </div>
     <div class="flex gap-2">
@@ -37,21 +44,46 @@
       <button id="addBtn" onclick="handleAddSong()" class="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 active:scale-95 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 shadow-lg shadow-blue-500/20 flex items-center gap-1"><span>➕</span> 新增</button>
     </div>
   </header>
+
   <div class="flex shrink-0 glass-panel border-t-0">
     <button id="tabPlaylist" class="tab-btn active flex-1 py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2" onclick="switchTab('playlist')"><span>📋</span> 播放列表</button>
     <button id="tabHistory" class="tab-btn flex-1 py-3 text-sm font-bold text-gray-400 transition-colors flex items-center justify-center gap-2" onclick="switchTab('history')"><span>📜</span> 歷史紀錄</button>
   </div>
+
   <main class="flex-1 overflow-y-auto p-4 relative">
     <div id="playlistContainer" class="flex flex-col gap-2.5"></div>
     <div id="historyContainer" class="flex flex-col gap-2.5 hidden"></div>
   </main>
+
+  <!-- 底部手機即時控制面板 -->
+  <footer class="remote-control-panel p-3.5 flex flex-col gap-2.5 shrink-0 z-20">
+    <div class="flex items-center gap-2 text-xs text-gray-300">
+      <span id="currentTime">00:00</span>
+      <input type="range" id="timeSlider" class="time-slider flex-1" value="0" min="0" max="100" step="0.1">
+      <span id="durationTime">00:00</span>
+    </div>
+    <div class="grid grid-cols-5 gap-1.5">
+      <button onclick="sendRemoteCommand('togglePlay')" class="rc-btn col-span-1 text-center" id="playPauseBtn">暫停</button>
+      <button onclick="sendRemoteCommand('skip')" class="rc-btn col-span-1 text-center text-cyan-400">切歌</button>
+      <button onclick="sendRemoteCommand('speed')" class="rc-btn col-span-1 text-center" id="speedBtn">1.0x</button>
+      <button onclick="sendRemoteCommand('subtitle')" class="rc-btn col-span-1 text-center" id="subBtn">字幕</button>
+      <button onclick="sendRemoteCommand('autohide')" class="rc-btn col-span-1 text-center text-xs" id="hideBtn">隱介</button>
+    </div>
+  </footer>
+
   <script>
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const WS_URL = wsProtocol + window.location.host + '/ws';
     let ws = null;
     let playlist = [];
     let historyList = [];
+    let isUserDraggingSlider = false;
+
     const syncStatus = document.getElementById('syncStatus');
+    const connectionBadge = document.getElementById('connectionBadge');
+    const timeSlider = document.getElementById('timeSlider');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
 
     const Toast = Swal.mixin({
       toast: true, position: 'top', showConfirmButton: false, timer: 2000, timerProgressBar: true,
@@ -71,15 +103,66 @@
     function initWebSocket() {
       syncStatus.style.display = 'block';
       ws = new WebSocket(WS_URL);
-      ws.onopen = () => { syncStatus.style.display = 'none'; };
+
+      ws.onopen = () => {
+        syncStatus.style.display = 'none';
+        connectionBadge.textContent = '已連線';
+        connectionBadge.className = 'text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30';
+      };
+
       ws.onmessage = (event) => {
         syncStatus.style.display = 'none';
-        const data = JSON.parse(event.data);
-        if (data.playlist) playlist = data.playlist;
-        if (data.history) historyList = data.history;
-        renderLists();
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.playlist) playlist = data.playlist;
+          if (data.history) historyList = data.history;
+          renderLists();
+
+          // 接收大螢幕即時回報的秒數進度
+          if (data.action === 'SYNC_TIME') {
+            const cur = data.currentTime || 0;
+            const dur = data.duration || 1;
+            currentTimeEl.textContent = formatTime(cur);
+            durationTimeEl.textContent = formatTime(dur);
+            if (!isUserDraggingSlider && dur > 0) {
+              timeSlider.value = (cur / dur) * 100;
+            }
+          }
+        } catch (e) {}
       };
-      ws.onclose = () => { syncStatus.style.display = 'none'; setTimeout(initWebSocket, 3000); };
+
+      ws.onclose = () => {
+        syncStatus.style.display = 'none';
+        connectionBadge.textContent = '未連線';
+        connectionBadge.className = 'text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30';
+        setTimeout(initWebSocket, 3000);
+      };
+    }
+
+    // 發送遙控指令給大螢幕
+    function sendRemoteCommand(cmd) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'REMOTE_CMD', command: cmd }));
+      }
+    }
+
+    // 拖曳時間軸快轉
+    timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
+    timeSlider.addEventListener('touchstart', () => { isUserDraggingSlider = true; });
+
+    timeSlider.addEventListener('change', (e) => {
+      isUserDraggingSlider = false;
+      const percent = e.target.value;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
+      }
+    });
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
     function renderLists() {
@@ -144,7 +227,6 @@
       showToast('已重新點播該歌曲', 'success'); switchTab('playlist');
     }
 
-    function manualRefresh() { showToast('狀態已同步', 'info'); }
     initWebSocket();
   </script>
 </body>
