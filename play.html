@@ -73,7 +73,6 @@
       pointer-events: auto;
     }
 
-    /* 底部專屬感應檢測區塊：完全透明、不可見但可感應滑鼠 */
     .bottom-detector {
       position: absolute;
       bottom: 0;
@@ -172,7 +171,6 @@
       font-weight: bold;
     }
 
-    /* 歷史播放清單彈窗樣式 */
     .history-modal {
       position: absolute;
       bottom: 130px;
@@ -587,11 +585,9 @@
       </div>
     </div>
 
-    <!-- 底部專屬隱形感應區塊 -->
     <div class="bottom-detector" id="bottomDetector"></div>
 
     <div class="bottom-container" id="bottomContainer">
-      <!-- 歷史播放清單彈窗 -->
       <div class="history-modal" id="historyModal">
         <div class="modal-header">
           <span>歷史播放紀錄 (雲端同步)</span>
@@ -625,10 +621,10 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // --- WebSocket 雲端同步設定 ---
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const WS_URL = wsProtocol + window.location.host + '/ws';
     let ws = null;
+    let myIsMaster = false;
 
     let player;
     let playlist = [];
@@ -682,7 +678,6 @@
     let isPlaylistLongPress = false;
     const isMobileDevice = () => window.innerWidth <= 768;
 
-    // --- 初始化 WebSocket 連線 ---
     function initWebSocket() {
       syncIndicator.classList.remove('connected');
       ws = new WebSocket(WS_URL);
@@ -694,14 +689,21 @@
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.action === 'SYNC_STATE') {
+
+          // 接收 Master 身分指派
+          if (data.action === 'INIT_ROLE') {
+            myIsMaster = data.isMaster;
+            console.log("目前這台螢幕的身分是:", myIsMaster ? "👑 主控端 (Master)" : "📺 跟播端 (Viewer)");
+          }
+
+          // 1. 同步歌單與歷史紀錄
+          if (data.action === 'SYNC_STATE' || data.playlist) {
             if (data.playlist) {
               const oldFirstId = playlist.length > 0 ? playlist[0].id : null;
               playlist = data.playlist;
               playHistory = data.history || [];
               updatePlaylistUI();
 
-              // 如果第一首歌變了或剛好開始播，同步切換播放
               if (playlist.length > 0) {
                 if (playlist[0].id !== oldFirstId) {
                   checkAndPlayNext();
@@ -715,13 +717,43 @@
               }
             }
           }
+
+          // 2. 接收來自遙控器 (control.html) 的控制指令
+          if (data.action === 'REMOTE_CMD') {
+            handleRemoteCommand(data.command);
+          }
+
+          // 3. 接收來自遙控器 (control.html) 的進度跳轉
+          if (data.action === 'SEEK_TIME' && player && isApiReady && typeof player.getDuration === 'function') {
+            const targetTime = (data.percent / 100) * player.getDuration();
+            player.seekTo(targetTime, true);
+          }
+
+          // 4. 跟播端校正秒數（帶 1.5 秒緩衝容錯）
+          if (data.action === 'SYNC_TIME' && !myIsMaster && player && isApiReady && typeof player.getCurrentTime === 'function') {
+            if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+              const diff = Math.abs(player.getCurrentTime() - data.currentTime);
+              if (diff > 1.5) {
+                player.seekTo(data.currentTime, true);
+              }
+            }
+          }
         } catch (e) {}
       };
 
       ws.onclose = () => {
         syncIndicator.classList.remove('connected');
-        setTimeout(initWebSocket, 3000); // 3秒後自動重連
+        setTimeout(initWebSocket, 3000);
       };
+    }
+
+    // 處理手機遙控器傳來的按鈕命令
+    function handleRemoteCommand(cmd) {
+      if (cmd === 'togglePlay') togglePlayPause();
+      else if (cmd === 'skip') skipToNextSong();
+      else if (cmd === 'speed') cyclePlaybackSpeed();
+      else if (cmd === 'subtitle') toggleSubtitleMode();
+      else if (cmd === 'autohide') autoHideBtn.click();
     }
 
     inputContainer.addEventListener('mousedown', () => {
@@ -910,7 +942,10 @@
 
     function onPlayerStateChange(event) {
       if (event.data === YT.PlayerState.ENDED) {
-        skipToNextSong();
+        // 只有 Master 才能觸發切歌，避免多螢幕重複觸發
+        if (myIsMaster) {
+          skipToNextSong();
+        }
       } else if (event.data === YT.PlayerState.PLAYING) {
         isPlaying = true;
         playPauseBtn.textContent = '暫停';
@@ -925,7 +960,7 @@
 
     function onPlayerError(event) {
       triggerErrorAnimation();
-      skipToNextSong();
+      if (myIsMaster) skipToNextSong();
     }
 
     function skipToNextSong() {
@@ -1093,6 +1128,7 @@
       }
     }
 
+    // 每 500ms 計算時間，並由 Master 負責回報給遙控器與跟播端
     function startTimeTracker() {
       if (timeUpdateInterval) clearInterval(timeUpdateInterval);
       timeUpdateInterval = setInterval(() => {
@@ -1103,6 +1139,15 @@
           durationTimeEl.textContent = formatTime(duration);
           if (!isUserDraggingSlider && duration > 0) {
             timeSlider.value = (currentTime / duration) * 100;
+          }
+
+          // Master 播放器持續回報進度給雲端（給手機遙控器及其他跟播螢幕）
+          if (myIsMaster && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              action: 'SYNC_TIME',
+              currentTime: currentTime,
+              duration: duration
+            }));
           }
         }
       }, 500);
@@ -1162,7 +1207,6 @@
 
       const videoTitle = await fetchVideoTitle(videoId);
       
-      // 透過 WebSocket 傳送給雲端後端，達到遠端即時同步
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           action: 'addSong',
