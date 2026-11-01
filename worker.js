@@ -1,3 +1,9 @@
+/**
+ * ==============================================================================
+ * CLOUDFLARE WORKER & DURABLE OBJECT (點歌系統後端 API & WebSocket 廣播)
+ * ==============================================================================
+ */
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -13,7 +19,7 @@ export default {
       });
     }
 
-    // WebSocket 路由轉交給 Durable Object
+    // WebSocket 路由轉交給 Durable Object 處理
     if (url.pathname === "/ws") {
       const roomId = url.searchParams.get("room") || "default_room";
       const id = env.MY_DURABLE_OBJECT.idFromName(roomId);
@@ -21,12 +27,12 @@ export default {
       return stub.fetch(request);
     }
 
-    // 如果訪問根目錄，預設導向播放器 (play.html)
+    // 首頁自動導向靜態資產 (play.html)
     if (url.pathname === "/") {
       return env.ASSETS.fetch(new Request(new URL('/play.html', request.url), request));
     }
 
-    // 其他靜態檔案 (play.html, control.html 等) 直接由 Cloudflare Assets 提供
+    // 其他靜態檔案 (play.html, control.html) 由 Cloudflare Assets 提供
     try {
       return await env.ASSETS.fetch(request);
     } catch (e) {
@@ -42,6 +48,7 @@ export class MyDurableObject {
     this.playlist = [];
     this.history = [];
 
+    // 初始化讀取持久化儲存 (SQLite)
     this.state.blockConcurrencyWhile(async () => {
       this.playlist = (await this.state.storage.get("playlist")) || [];
       this.history = (await this.state.storage.get("history")) || [];
@@ -55,10 +62,17 @@ export class MyDurableObject {
       const webSocketPair = new WebSocketPair();
       const [client, server] = Object.values(webSocketPair);
 
+      // 接受 WebSocket 連線
       this.state.acceptWebSocket(server);
 
+      // 判斷是否為第一個連進來的播放器 (指定 Master 主控端權限)
+      const sockets = this.state.getWebSockets();
+      const isFirst = sockets.length === 1;
+
+      // 初次連線發送狀態與 Master 權限指派
       server.send(JSON.stringify({
-        action: "SYNC_STATE",
+        action: "INIT_ROLE",
+        isMaster: isFirst,
         playlist: this.playlist,
         history: this.history
       }));
@@ -84,6 +98,20 @@ export class MyDurableObject {
   async webSocketMessage(ws, message) {
     try {
       const data = JSON.parse(message);
+
+      // 1. 廣播手機遙控器 command 與快轉時間 (不寫入持久庫，直接秒級轉發給所有大螢幕)
+      if (data.action === "REMOTE_CMD" || data.action === "SEEK_TIME") {
+        this.broadcastRaw(message);
+        return;
+      }
+
+      // 2. 廣播大螢幕播放秒數同步訊號 (給手機遙控器與其他跟播端)
+      if (data.action === "SYNC_TIME") {
+        this.broadcastRaw(message);
+        return;
+      }
+
+      // 3. 變更播放清單與歷史紀錄的操作
       await this.handleAction(data.action, data);
     } catch (e) {}
   }
@@ -141,15 +169,24 @@ export class MyDurableObject {
     }
   }
 
+  // 廣播最新歌單與歷史資料
   broadcastState() {
     const data = JSON.stringify({
       action: "SYNC_STATE",
       playlist: this.playlist,
       history: this.history
     });
+    this.broadcastRaw(data);
+  }
 
+  // 廣播原始訊息給所有人
+  broadcastRaw(msg) {
     for (const ws of this.state.getWebSockets()) {
-      try { ws.send(data); } catch (e) { ws.close(); }
+      try {
+        ws.send(msg);
+      } catch (e) {
+        ws.close();
+      }
     }
   }
 }
