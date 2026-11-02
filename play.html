@@ -12,35 +12,60 @@
     #player { width: 100%; height: 100%; border: none; }
     .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 4; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
     .ui-layer * { pointer-events: auto; }
-    .bottom-detector { position: absolute; bottom: 0; left: 0; width: 100%; height: 150px; z-index: 5; background: transparent; }
+    .bottom-detector { position: absolute; bottom: 0; left: 0; width: 100%; height: 150px; z-index: 5; pointer-events: auto; background: transparent; }
     .header-title-container { display: flex; align-items: center; gap: 10px; width: fit-content; }
-    .header-title { font-size: 16px; font-weight: bold; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; padding: 10px 20px; }
+    .header-title { font-size: 16px; font-weight: bold; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; padding: 10px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
     
-    /* 狀態燈號：預設紅燈，連線綠燈，若是 Master 則改為藍色 */
-    .sync-indicator { width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 8px #ef4444; transition: all 0.3s; }
-    .sync-indicator.connected { background-color: #22c55e; box-shadow: 0 0 8px #22c55e; }
-    .sync-indicator.master { background-color: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+    /* 燈號設定：未連線紅燈、Viewer黃燈、Master藍燈 */
+    .sync-indicator { width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 8px #ef4444; transition: background-color 0.3s; }
+    .sync-indicator.viewer { background-color: #eab308; box-shadow: 0 0 8px #eab308; }
+    .sync-indicator.master { background-color: #4facfe; box-shadow: 0 0 10px #4facfe; }
 
-    .playlist-wrapper { position: absolute; top: 20px; right: 20px; width: 320px; display: flex; flex-direction: column; align-items: flex-end; }
+    .subtitle-menu, .feature-menu { position: absolute; bottom: 95px; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; padding: 8px; width: 190px; max-height: 220px; overflow-y: auto; display: none; flex-direction: column; gap: 4px; z-index: 10; }
+    .subtitle-menu { right: 24px; } .feature-menu { right: 120px; width: 240px; }
+    .subtitle-menu.active, .feature-menu.active { display: flex; }
+    .subtitle-option, .feature-option { background: transparent; border: none; color: #fff; padding: 8px 12px; text-align: left; font-size: 13px; border-radius: 6px; cursor: pointer; }
+    .subtitle-option:hover, .feature-option:hover { background: rgba(255, 255, 255, 0.2); color: #4facfe; }
+    .feature-option.active-state { color: #4facfe; font-weight: bold; }
+
+    .history-modal { position: absolute; bottom: 130px; left: 20px; background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 14px; padding: 12px; width: 320px; max-height: 350px; display: none; flex-direction: column; gap: 8px; z-index: 25; }
+    .history-modal.active { display: flex; }
+    .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+    .history-item { background: rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+    .history-item:hover { background: rgba(255, 255, 255, 0.2); }
+    .history-title { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-info { font-size: 11px; color: rgba(255, 255, 255, 0.6); display: flex; justify-content: space-between; }
+
+    .playlist-wrapper { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; width: 320px; }
     .playlist-btn-container { width: 120px; height: 40px; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
     .playlist-btn-container.expanded { width: 320px; background-color: rgba(0, 0, 0, 0.85); border-color: #4facfe; }
+    .btn-label { font-size: 16px; font-weight: bold; }
     .url-input { width: 100%; height: 100%; background: transparent; border: none; outline: none; color: #fff; padding: 0 15px; display: none; font-size: 14px; }
     .playlist-btn-container.expanded .btn-label { display: none; }
     .playlist-btn-container.expanded .url-input { display: block; }
     .song-list { margin-top: 15px; width: 100%; max-height: calc(100vh - 100px); display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-    .song-item { background: rgba(0, 0, 0, 0.85); border-radius: 8px; padding: 8px 12px; font-size: 14px; border-left: 3px solid #4facfe; }
-    .bottom-container { display: flex; justify-content: center; width: 100%; margin-bottom: 10px; z-index: 6; transition: transform 0.4s ease, opacity 0.4s ease; }
+    .song-item { background: rgba(0, 0, 0, 0.85); border-radius: 8px; padding: 8px 12px; font-size: 14px; border-left: 3px solid #4facfe; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .bottom-container { display: flex; justify-content: center; width: 100%; margin-bottom: 10px; position: relative; z-index: 6; transition: transform 0.4s ease, opacity 0.4s ease; }
     .bottom-container.auto-hidden { transform: translateY(120px); opacity: 0; pointer-events: none; }
-    .control-bar { display: flex; gap: 10px; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 16px; padding: 12px 24px; align-items: center; }
+    .control-bar { display: flex; flex-direction: column; align-items: center; gap: 10px; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 16px; padding: 12px 24px; }
+    .timeline-container { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+    .time-slider { -webkit-appearance: none; appearance: none; width: 280px; height: 4px; background: rgba(255, 255, 255, 0.3); border-radius: 2px; outline: none; cursor: pointer; }
+    .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #4facfe; }
+    .buttons-container { display: flex; align-items: center; gap: 10px; }
+    .control-btn { background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; color: #fff; padding: 6px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .control-btn:hover { background: rgba(255, 255, 255, 0.3); border-color: #4facfe; }
   </style>
 </head>
 <body>
   <div id="player-container"><div id="player"></div></div>
+
   <div class="ui-layer">
     <div class="header-title-container">
       <div class="header-title" id="headerTitle">Qimei Music Web</div>
-      <div class="sync-indicator" id="syncIndicator" title="連線與身分狀態"></div>
+      <div class="sync-indicator" id="syncIndicator" title="連線與身分燈號"></div>
     </div>
+
     <div class="playlist-wrapper">
       <div class="playlist-btn-container" id="inputContainer">
         <span class="btn-label" id="playlistBtnLabel">播放列表</span>
@@ -48,28 +73,68 @@
       </div>
       <div class="song-list" id="songList"></div>
     </div>
+
     <div class="bottom-detector" id="bottomDetector"></div>
+
+    <div class="bottom-container" id="bottomContainer">
+      <div class="history-modal" id="historyModal">
+        <div class="modal-header"><span>歷史播放紀錄</span><span id="closeHistory" style="cursor: pointer; color: #4facfe;">關閉</span></div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+      <div class="feature-menu" id="featureMenu">
+        <button class="feature-option" id="autoHideBtn">自動隱藏介面: 關閉</button>
+        <button class="feature-option" id="historyBtn">歷史播放清單</button>
+      </div>
+      <div class="subtitle-menu" id="subtitleMenu"></div>
+
+      <div class="control-bar">
+        <div class="timeline-container">
+          <span id="currentTime">00:00</span>
+          <input type="range" id="timeSlider" class="time-slider" value="0" min="0" max="100" step="0.1">
+          <span id="durationTime">00:00</span>
+        </div>
+        <div class="buttons-container">
+          <button class="control-btn" id="playPauseBtn">暫停</button>
+          <button class="control-btn" id="skipBtn">切歌</button>
+          <button class="control-btn" id="speedBtn">1.0x</button>
+          <button class="control-btn" id="featureBtn">功能</button>
+          <button class="control-btn" id="subtitleBtn">字幕</button>
+        </div>
+      </div>
+    </div>
   </div>
+
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const WS_URL = wsProtocol + window.location.host + '/ws';
     let ws = null;
     let myIsMaster = false;
-    let player, playlist = [], isApiReady = false;
 
-    const syncIndicator = document.getElementById('syncIndicator');
-    const headerTitle = document.getElementById('headerTitle');
-    const inputContainer = document.getElementById('inputContainer');
+    let player, playlist = [], playHistory = [], isApiReady = false, isUserDraggingSlider = false, isSubtitleActive = false;
+    let currentSpeedIndex = 0;
+    const speeds = [1.0, 1.25, 1.5, 2.0, 0.5];
+
     const urlInput = document.getElementById('urlInput');
+    const inputContainer = document.getElementById('inputContainer');
+    const playlistBtnLabel = document.getElementById('playlistBtnLabel');
+    const headerTitle = document.getElementById('headerTitle');
+    const syncIndicator = document.getElementById('syncIndicator');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const speedBtn = document.getElementById('speedBtn');
+    const timeSlider = document.getElementById('timeSlider');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
 
     inputContainer.onclick = () => { inputContainer.classList.add('expanded'); urlInput.focus(); };
+
     urlInput.onkeydown = async (e) => {
       if (e.key === 'Enter' && urlInput.value.trim()) {
         const videoId = extractVideoId(urlInput.value.trim());
         if (videoId) {
           const title = await fetchVideoTitle(videoId);
-          ws.send(JSON.stringify({ action: 'addSong', song: { id: videoId, title } }));
+          ws.send(JSON.stringify({ action: 'addSong', song: { id: videoId, title, videoDuration: '03:30' } }));
           urlInput.value = '';
           inputContainer.classList.remove('expanded');
         }
@@ -77,10 +142,9 @@
     };
 
     function initWebSocket() {
-      syncIndicator.className = 'sync-indicator';
       ws = new WebSocket(WS_URL);
 
-      ws.onopen = () => { syncIndicator.classList.add('connected'); };
+      ws.onopen = () => {};
 
       ws.onmessage = (event) => {
         try {
@@ -88,55 +152,130 @@
 
           if (data.action === 'INIT_ROLE') {
             myIsMaster = data.isMaster;
-            if (myIsMaster) {
-              syncIndicator.classList.add('master'); // Master 燈號改為藍色
-            }
+            syncIndicator.className = 'sync-indicator ' + (myIsMaster ? 'master' : 'viewer');
           }
 
           if (data.action === 'SYNC_STATE' || data.playlist) {
-            playlist = data.playlist || [];
-            updatePlaylistUI();
-            checkAndPlayNext();
+            if (data.playlist) {
+              const oldFirstId = playlist.length > 0 ? playlist[0].id : null;
+              playlist = data.playlist;
+              playHistory = data.history || [];
+              updatePlaylistUI();
+
+              if (playlist.length > 0) {
+                if (playlist[0].id !== oldFirstId) checkAndPlayNext();
+              } else {
+                if (player && isApiReady && typeof player.stopVideo === 'function') player.stopVideo();
+                headerTitle.textContent = 'Qimei Music Web';
+                playlistBtnLabel.textContent = '播放列表';
+              }
+            }
           }
 
-          // 接收來自控制端的遙控指令
-          if (data.action === 'REMOTE_CMD') {
-            handleRemoteCommand(data.command);
-          }
+          if (data.action === 'REMOTE_CMD') handleRemoteCommand(data.command);
 
-          // 接收來自控制端的時間軸快轉百分比
           if (data.action === 'SEEK_TIME' && player && isApiReady && typeof player.getDuration === 'function') {
-            const targetTime = (data.percent / 100) * player.getDuration();
-            player.seekTo(targetTime, true);
+            player.seekTo((data.percent / 100) * player.getDuration(), true);
           }
 
-          // 跟播端秒數校正 (1.5秒緩衝)
+          // 跟播端接收 Master 的秒數，若誤差大於 1.5 秒則自動校正對齊
           if (data.action === 'SYNC_TIME' && !myIsMaster && player && isApiReady && typeof player.getCurrentTime === 'function') {
             if (player.getPlayerState() === YT.PlayerState.PLAYING) {
-              if (Math.abs(player.getCurrentTime() - data.currentTime) > 1.5) {
-                player.seekTo(data.currentTime, true);
-              }
+              const diff = Math.abs(player.getCurrentTime() - data.currentTime);
+              if (diff > 1.5) player.seekTo(data.currentTime, true);
             }
           }
         } catch (e) {}
       };
 
       ws.onclose = () => {
-        syncIndicator.className = 'sync-indicator';
+        syncIndicator.className = 'sync-indicator'; // 紅燈
         setTimeout(initWebSocket, 3000);
       };
     }
 
     function handleRemoteCommand(cmd) {
-      if (!player || !isApiReady) return;
-      if (cmd === 'togglePlay') {
+      if (cmd === 'togglePlay') togglePlayPause();
+      else if (cmd === 'skip') skipToNextSong();
+      else if (cmd === 'speed') cyclePlaybackSpeed();
+      else if (cmd === 'subtitle') toggleSubtitleMode();
+    }
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        host: 'https://www.youtube-nocookie.com',
+        playerVars: { 'autoplay': 1, 'controls': 0, 'disablekb': 1, 'enablejsapi': 1 },
+        events: {
+          'onReady': () => { isApiReady = true; initWebSocket(); checkAndPlayNext(); startTimeTracker(); },
+          'onStateChange': (e) => { if (e.data === YT.PlayerState.ENDED && myIsMaster) skipToNextSong(); }
+        }
+      });
+    }
+
+    function skipToNextSong() {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: 'moveToHistory' }));
+    }
+
+    function checkAndPlayNext() {
+      if (playlist.length > 0 && isApiReady && player && typeof player.loadVideoById === 'function') {
+        const curData = player.getVideoData ? player.getVideoData() : null;
+        if (!curData || curData.video_id !== playlist[0].id) {
+          player.loadVideoById(playlist[0].id);
+          player.playVideo();
+        }
+        headerTitle.textContent = playlist[0].title;
+        playlistBtnLabel.textContent = `播放中 (${playlist.length})`;
+      }
+    }
+
+    function togglePlayPause() {
+      if (player && isApiReady) {
         if (player.getPlayerState() === YT.PlayerState.PLAYING) player.pauseVideo();
         else player.playVideo();
-      } else if (cmd === 'skip') {
-        if (myIsMaster) ws.send(JSON.stringify({ action: 'moveToHistory' }));
-      } else if (cmd === 'speed') {
-        // 可擴充倍速
       }
+    }
+
+    function cyclePlaybackSpeed() {
+      if (player && isApiReady && typeof player.setPlaybackRate === 'function') {
+        currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+        const newSpeed = speeds[currentSpeedIndex];
+        player.setPlaybackRate(newSpeed);
+        document.getElementById('speedBtn').textContent = `${newSpeed}x`;
+      }
+    }
+
+    function toggleSubtitleMode() {
+      isSubtitleActive = !isSubtitleActive;
+      if (player && isApiReady) {
+        if (isSubtitleActive && typeof player.loadModule === 'function') {
+          player.loadModule('captions');
+          player.setOption('captions', 'track', { languageCode: 'zh-Hant' });
+        } else if (typeof player.unloadModule === 'function') {
+          player.unloadModule('captions');
+        }
+      }
+    }
+
+    // 只有 Master 負責每秒回報進度給雲端（同步給手機與其他 Viewer）
+    function startTimeTracker() {
+      setInterval(() => {
+        if (player && isApiReady && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+          const cur = player.getCurrentTime() || 0;
+          const dur = player.getDuration() || 0;
+          currentTimeEl.textContent = formatTime(cur);
+          durationTimeEl.textContent = formatTime(dur);
+          if (!isUserDraggingSlider && dur > 0) timeSlider.value = (cur / dur) * 100;
+
+          if (myIsMaster && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'SYNC_TIME', currentTime: cur, duration: dur }));
+          }
+        }
+      }, 500);
+    }
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60), s = Math.floor(seconds % 60);
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
 
     function extractVideoId(url) {
@@ -161,41 +300,6 @@
         item.textContent = (i === 0 ? '▶ ' : (i + 1) + '. ') + song.title;
         songList.appendChild(item);
       });
-    }
-
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player('player', {
-        host: 'https://www.youtube-nocookie.com',
-        playerVars: { 'autoplay': 1, 'controls': 0, 'disablekb': 1, 'enablejsapi': 1 },
-        events: {
-          'onReady': () => { isApiReady = true; initWebSocket(); startProgressTracker(); },
-          'onStateChange': (e) => { if (e.data === YT.PlayerState.ENDED && myIsMaster) ws.send(JSON.stringify({ action: 'moveToHistory' })); }
-        }
-      });
-    }
-
-    // Master 每 500ms 廣播一次目前進度給所有裝置與控制端
-    function startProgressTracker() {
-      setInterval(() => {
-        if (myIsMaster && player && isApiReady && typeof player.getCurrentTime === 'function') {
-          const cur = player.getCurrentTime() || 0;
-          const dur = player.getDuration() || 1;
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ action: 'SYNC_TIME', currentTime: cur, duration: dur }));
-          }
-        }
-      }, 500);
-    }
-
-    function checkAndPlayNext() {
-      if (playlist.length > 0 && isApiReady && player && typeof player.loadVideoById === 'function') {
-        const curData = player.getVideoData ? player.getVideoData() : null;
-        if (!curData || curData.video_id !== playlist[0].id) {
-          player.loadVideoById(playlist[0].id);
-          player.playVideo();
-          headerTitle.textContent = playlist[0].title;
-        }
-      }
     }
   </script>
 </body>
