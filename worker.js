@@ -2,6 +2,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // 支援 CORS 預檢
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
@@ -12,6 +13,7 @@ export default {
       });
     }
 
+    // WebSocket 路由轉交給 Durable Object
     if (url.pathname === "/ws") {
       const roomId = url.searchParams.get("room") || "default_room";
       const id = env.MY_DURABLE_OBJECT.idFromName(roomId);
@@ -19,10 +21,12 @@ export default {
       return stub.fetch(request);
     }
 
+    // 如果訪問根目錄，預設導向播放器 (play.html)
     if (url.pathname === "/") {
       return env.ASSETS.fetch(new Request(new URL('/play.html', request.url), request));
     }
 
+    // 其他靜態檔案 (play.html, control.html 等) 直接由 Cloudflare Assets 提供
     try {
       return await env.ASSETS.fetch(request);
     } catch (e) {
@@ -37,7 +41,6 @@ export class MyDurableObject {
     this.env = env;
     this.playlist = [];
     this.history = [];
-    this.masterWebSocket = null;
 
     this.state.blockConcurrencyWhile(async () => {
       this.playlist = (await this.state.storage.get("playlist")) || [];
@@ -54,26 +57,8 @@ export class MyDurableObject {
 
       this.state.acceptWebSocket(server);
 
-      const url = new URL(request.url);
-      const isParamMaster = url.searchParams.get("master") === "true";
-      
-      let finalIsMaster = false;
-      let conflict = false;
-
-      if (isParamMaster) {
-        if (!this.masterWebSocket || this.masterWebSocket.readyState !== 1) {
-          this.masterWebSocket = server;
-          finalIsMaster = true;
-        } else {
-          conflict = true;
-          finalIsMaster = false;
-        }
-      }
-
       server.send(JSON.stringify({
-        action: "INIT_ROLE",
-        isMaster: finalIsMaster,
-        hasConflict: conflict,
+        action: "SYNC_STATE",
         playlist: this.playlist,
         history: this.history
       }));
@@ -99,22 +84,11 @@ export class MyDurableObject {
   async webSocketMessage(ws, message) {
     try {
       const data = JSON.parse(message);
-      if (data.action === "PING") {
-        ws.send(JSON.stringify({ action: "PONG" }));
-        return;
-      }
-      if (data.action === "REMOTE_CMD" || data.action === "SEEK_TIME" || data.action === "SYNC_TIME") {
-        this.broadcastRaw(message);
-        return;
-      }
       await this.handleAction(data.action, data);
     } catch (e) {}
   }
 
   async webSocketClose(ws, code, reason, wasClean) {
-    if (ws === this.masterWebSocket) {
-      this.masterWebSocket = null;
-    }
     ws.close();
   }
 
@@ -173,12 +147,9 @@ export class MyDurableObject {
       playlist: this.playlist,
       history: this.history
     });
-    this.broadcastRaw(data);
-  }
 
-  broadcastRaw(msg) {
     for (const ws of this.state.getWebSockets()) {
-      try { ws.send(msg); } catch (e) { ws.close(); }
+      try { ws.send(data); } catch (e) { ws.close(); }
     }
   }
 }
