@@ -53,13 +53,16 @@ export class MyDurableObject {
 
       this.state.acceptWebSocket(server);
 
-      // 第一個連入的是 Master
+      // 檢查網址參數是否有帶 ?master=true
+      const url = new URL(request.url);
+      const isParamMaster = url.searchParams.get("master") === "true";
       const sockets = this.state.getWebSockets();
       const isFirst = sockets.length === 1;
+      const finalIsMaster = isParamMaster || isFirst;
 
       server.send(JSON.stringify({
         action: "INIT_ROLE",
-        isMaster: isFirst,
+        isMaster: finalIsMaster,
         playlist: this.playlist,
         history: this.history
       }));
@@ -85,13 +88,10 @@ export class MyDurableObject {
   async webSocketMessage(ws, message) {
     try {
       const data = JSON.parse(message);
-
-      // 遙控指令、快轉、時間同步全部即時廣播給所有人
       if (data.action === "REMOTE_CMD" || data.action === "SEEK_TIME" || data.action === "SYNC_TIME") {
         this.broadcastRaw(message);
         return;
       }
-
       await this.handleAction(data.action, data);
     } catch (e) {}
   }
