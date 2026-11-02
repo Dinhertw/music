@@ -2,7 +2,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 支援 CORS 預檢
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
@@ -13,7 +12,6 @@ export default {
       });
     }
 
-    // WebSocket 路由轉交給 Durable Object
     if (url.pathname === "/ws") {
       const roomId = url.searchParams.get("room") || "default_room";
       const id = env.MY_DURABLE_OBJECT.idFromName(roomId);
@@ -21,12 +19,10 @@ export default {
       return stub.fetch(request);
     }
 
-    // 如果訪問根目錄，預設導向播放器 (play.html)
     if (url.pathname === "/") {
       return env.ASSETS.fetch(new Request(new URL('/play.html', request.url), request));
     }
 
-    // 其他靜態檔案 (play.html, control.html 等) 直接由 Cloudflare Assets 提供
     try {
       return await env.ASSETS.fetch(request);
     } catch (e) {
@@ -69,7 +65,7 @@ export class MyDurableObject {
     if (request.method === "POST") {
       try {
         const body = await request.json();
-        await this.handleAction(body.action, body);
+        await this.handleAction(body.action, body, null);
         return new Response(JSON.stringify({ success: true, playlist: this.playlist, history: this.history }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
@@ -84,7 +80,7 @@ export class MyDurableObject {
   async webSocketMessage(ws, message) {
     try {
       const data = JSON.parse(message);
-      await this.handleAction(data.action, data);
+      await this.handleAction(data.action, data, ws);
     } catch (e) {}
   }
 
@@ -92,7 +88,7 @@ export class MyDurableObject {
     ws.close();
   }
 
-  async handleAction(action, payload) {
+  async handleAction(action, payload, senderWs) {
     let changed = false;
 
     if (action === "addSong" && payload.song) {
@@ -129,15 +125,33 @@ export class MyDurableObject {
         changed = true;
       }
     } 
+    else if (action === "clearHistory") {
+      this.history = [];
+      changed = true;
+    }
     else if (action === "syncPlaylist" && Array.isArray(payload.playlist)) {
       this.playlist = payload.playlist;
       changed = true;
+    }
+    // 遠端控制指令與時間同步直接廣播給房內其他連線
+    else if (action === "REMOTE_CMD" || action === "SEEK_TIME" || action === "SYNC_TIME") {
+      this.broadcastMessage(payload, senderWs);
+      return;
     }
 
     if (changed) {
       await this.state.storage.put("playlist", this.playlist);
       await this.state.storage.put("history", this.history);
       this.broadcastState();
+    }
+  }
+
+  broadcastMessage(payload, senderWs) {
+    const data = JSON.stringify(payload);
+    for (const ws of this.state.getWebSockets()) {
+      if (ws !== senderWs) {
+        try { ws.send(data); } catch (e) { ws.close(); }
+      }
     }
   }
 
