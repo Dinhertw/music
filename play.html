@@ -150,6 +150,10 @@
           if (data.action === 'INIT_ROLE') {
             myIsMaster = data.isMaster;
             syncIndicator.className = 'sync-indicator ' + (myIsMaster ? 'master' : 'viewer');
+
+            if (data.hasConflict) {
+              alert('⚠️ 偵測到已經有其他主控端 (Master) 正在運行中！此視窗已自動切換為跟播端 (Viewer)。');
+            }
           }
 
           if (data.action === 'SYNC_STATE' || data.playlist) {
