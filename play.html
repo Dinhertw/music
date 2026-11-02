@@ -16,7 +16,6 @@
     .header-title-container { display: flex; align-items: center; gap: 10px; width: fit-content; }
     .header-title { font-size: 16px; font-weight: bold; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; padding: 10px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
     
-    /* 燈號設定：未連線紅燈、Viewer黃燈、Master藍燈 */
     .sync-indicator { width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 8px #ef4444; transition: background-color 0.3s; }
     .sync-indicator.viewer { background-color: #eab308; box-shadow: 0 0 8px #eab308; }
     .sync-indicator.master { background-color: #4facfe; box-shadow: 0 0 10px #4facfe; }
@@ -107,7 +106,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const WS_URL = wsProtocol + window.location.host + '/ws';
+    const WS_URL = wsProtocol + window.location.host + '/ws' + window.location.search;
     let ws = null;
     let myIsMaster = false;
 
@@ -144,8 +143,6 @@
     function initWebSocket() {
       ws = new WebSocket(WS_URL);
 
-      ws.onopen = () => {};
-
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -178,7 +175,6 @@
             player.seekTo((data.percent / 100) * player.getDuration(), true);
           }
 
-          // 跟播端接收 Master 的秒數，若誤差大於 1.5 秒則自動校正對齊
           if (data.action === 'SYNC_TIME' && !myIsMaster && player && isApiReady && typeof player.getCurrentTime === 'function') {
             if (player.getPlayerState() === YT.PlayerState.PLAYING) {
               const diff = Math.abs(player.getCurrentTime() - data.currentTime);
@@ -189,7 +185,7 @@
       };
 
       ws.onclose = () => {
-        syncIndicator.className = 'sync-indicator'; // 紅燈
+        syncIndicator.className = 'sync-indicator';
         setTimeout(initWebSocket, 3000);
       };
     }
@@ -256,7 +252,6 @@
       }
     }
 
-    // 只有 Master 負責每秒回報進度給雲端（同步給手機與其他 Viewer）
     function startTimeTracker() {
       setInterval(() => {
         if (player && isApiReady && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
