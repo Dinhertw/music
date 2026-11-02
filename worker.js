@@ -37,7 +37,7 @@ export class MyDurableObject {
     this.env = env;
     this.playlist = [];
     this.history = [];
-    this.masterWebSocket = null; // 追蹤當前唯一的 Master 連線
+    this.masterWebSocket = null;
 
     this.state.blockConcurrencyWhile(async () => {
       this.playlist = (await this.state.storage.get("playlist")) || [];
@@ -61,13 +61,12 @@ export class MyDurableObject {
       let conflict = false;
 
       if (isParamMaster) {
-        // 檢查是否已經有 Master 存在且連線中 (readyState === 1 代表 OPEN)
         if (!this.masterWebSocket || this.masterWebSocket.readyState !== 1) {
-          this.masterWebSocket = server; // 成功佔用 Master
+          this.masterWebSocket = server;
           finalIsMaster = true;
         } else {
-          conflict = true; // 已經被別人佔用了！
-          finalIsMaster = false; // 強制降級為 Viewer
+          conflict = true;
+          finalIsMaster = false;
         }
       }
 
@@ -100,6 +99,10 @@ export class MyDurableObject {
   async webSocketMessage(ws, message) {
     try {
       const data = JSON.parse(message);
+      if (data.action === "PING") {
+        ws.send(JSON.stringify({ action: "PONG" }));
+        return;
+      }
       if (data.action === "REMOTE_CMD" || data.action === "SEEK_TIME" || data.action === "SYNC_TIME") {
         this.broadcastRaw(message);
         return;
@@ -109,7 +112,6 @@ export class MyDurableObject {
   }
 
   async webSocketClose(ws, code, reason, wasClean) {
-    // 如果關閉的是當前 Master，釋放佔用權
     if (ws === this.masterWebSocket) {
       this.masterWebSocket = null;
     }
@@ -137,7 +139,7 @@ export class MyDurableObject {
         changed = true;
       }
     } 
-    else if (payload.action === "moveToHistory" || action === "moveToHistory") {
+    else if (action === "moveToHistory") {
       if (this.playlist.length > 0) {
         const finishedSong = this.playlist.shift();
         if (!this.history.some(h => h.id === finishedSong.id)) {
