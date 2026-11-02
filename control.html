@@ -12,16 +12,13 @@
     .tab-btn.active { background: rgba(79, 172, 254, 0.15); border-bottom: 2px solid #4facfe; color: #4facfe; }
     .song-item { background: rgba(15, 23, 42, 0.6); border-left: 3px solid #3b82f6; }
     .song-item.now-playing { background: rgba(79, 172, 254, 0.12); border-left: 4px solid #4facfe; box-shadow: 0 0 15px rgba(79, 172, 254, 0.2); }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
     .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #4facfe; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: none; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .swal2-popup-dark { background: #1e293b !important; color: #f8fafc !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 1rem !important; }
     
     .remote-control-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border-top: 1px solid rgba(255, 255, 255, 0.1); }
     .time-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; cursor: pointer; }
-    .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #4facfe; cursor: pointer; }
+    .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #4facfe; }
     .rc-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #fff; padding: 8px 12px; font-size: 13px; font-weight: bold; transition: all 0.2s; }
     .rc-btn:active { transform: scale(0.95); background: rgba(79, 172, 254, 0.3); border-color: #4facfe; }
   </style>
@@ -54,17 +51,18 @@
     <div id="historyContainer" class="flex flex-col gap-2.5 hidden"></div>
   </main>
 
-  <!-- 底部即時控制與進度 % 顯示面板 -->
+  <!-- 手機即時控制台（含即時進度條） -->
   <footer class="remote-control-panel p-3.5 flex flex-col gap-2.5 shrink-0 z-20">
-    <div class="flex items-center justify-between text-xs text-gray-300">
+    <div class="flex items-center gap-2 text-xs text-gray-300">
       <span id="currentTime">00:00</span>
-      <span id="progressPercent" class="text-[#4facfe] font-bold">0%</span>
+      <input type="range" id="timeSlider" class="time-slider flex-1" value="0" min="0" max="100" step="0.1">
       <span id="durationTime">00:00</span>
     </div>
-    <input type="range" id="timeSlider" class="time-slider w-full" value="0" min="0" max="100" step="0.1">
-    <div class="grid grid-cols-2 gap-2 mt-1">
-      <button onclick="sendRemoteCommand('togglePlay')" class="rc-btn text-center">播放 / 暫停</button>
+    <div class="grid grid-cols-4 gap-2">
+      <button onclick="sendRemoteCommand('togglePlay')" class="rc-btn text-center">播放/暫停</button>
       <button onclick="sendRemoteCommand('skip')" class="rc-btn text-center text-cyan-400">切歌</button>
+      <button onclick="sendRemoteCommand('speed')" class="rc-btn text-center">倍速</button>
+      <button onclick="sendRemoteCommand('subtitle')" class="rc-btn text-center">字幕</button>
     </div>
   </footer>
 
@@ -81,7 +79,14 @@
     const timeSlider = document.getElementById('timeSlider');
     const currentTimeEl = document.getElementById('currentTime');
     const durationTimeEl = document.getElementById('durationTime');
-    const progressPercentEl = document.getElementById('progressPercent');
+
+    const Toast = Swal.mixin({
+      toast: true, position: 'top', showConfirmButton: false, timer: 2000, timerProgressBar: true,
+      customClass: { popup: 'swal2-popup-dark shadow-2xl', title: 'text-sm font-medium text-white' },
+      background: '#1e293b', color: '#fff'
+    });
+
+    function showToast(msg, icon = 'success') { Toast.fire({ icon, title: msg }); }
 
     function switchTab(tab) {
       document.getElementById('tabPlaylist').classList.toggle('active', tab === 'playlist');
@@ -109,18 +114,14 @@
           if (data.history) historyList = data.history;
           renderLists();
 
-          // 接收大螢幕回報的進度並即時計算 % 數
+          // 即時接收 Master 回報的播放秒數與時長
           if (data.action === 'SYNC_TIME') {
             const cur = data.currentTime || 0;
             const dur = data.duration || 1;
             currentTimeEl.textContent = formatTime(cur);
             durationTimeEl.textContent = formatTime(dur);
-            
-            const percent = Math.min(100, Math.max(0, (cur / dur) * 100));
-            progressPercentEl.textContent = `${percent.toFixed(1)}%`;
-
             if (!isUserDraggingSlider && dur > 0) {
-              timeSlider.value = percent;
+              timeSlider.value = (cur / dur) * 100;
             }
           }
         } catch (e) {}
@@ -146,16 +147,14 @@
     timeSlider.addEventListener('change', (e) => {
       isUserDraggingSlider = false;
       const percent = e.target.value;
-      progressPercentEl.textContent = `${parseFloat(percent).toFixed(1)}%`;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
       }
     });
 
     function formatTime(seconds) {
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      const m = Math.floor(seconds / 60), s = Math.floor(seconds % 60);
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
 
     function renderLists() {
