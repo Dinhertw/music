@@ -51,7 +51,6 @@
     <div id="historyContainer" class="flex flex-col gap-2.5 hidden"></div>
   </main>
 
-  <!-- 手機即時控制台（含即時進度條） -->
   <footer class="remote-control-panel p-3.5 flex flex-col gap-2.5 shrink-0 z-20">
     <div class="flex items-center gap-2 text-xs text-gray-300">
       <span id="currentTime">00:00</span>
@@ -114,7 +113,6 @@
           if (data.history) historyList = data.history;
           renderLists();
 
-          // 即時接收 Master 回報的播放秒數與時長
           if (data.action === 'SYNC_TIME') {
             const cur = data.currentTime || 0;
             const dur = data.duration || 1;
