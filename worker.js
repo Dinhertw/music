@@ -53,6 +53,7 @@ export class MyDurableObject {
 
       this.state.acceptWebSocket(server);
 
+      // 第一個連入的是 Master
       const sockets = this.state.getWebSockets();
       const isFirst = sockets.length === 1;
 
@@ -85,7 +86,7 @@ export class MyDurableObject {
     try {
       const data = JSON.parse(message);
 
-      // 轉發遙控指令、時間軸快轉、以及播放進度同步給所有連線裝置
+      // 遙控指令、快轉、時間同步全部即時廣播給所有人
       if (data.action === "REMOTE_CMD" || data.action === "SEEK_TIME" || data.action === "SYNC_TIME") {
         this.broadcastRaw(message);
         return;
