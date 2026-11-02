@@ -109,6 +109,7 @@
     const WS_URL = wsProtocol + window.location.host + '/ws' + window.location.search;
     let ws = null;
     let myIsMaster = false;
+    let estimatedLatency = 0;
 
     let player, playlist = [], playHistory = [], isApiReady = false, isUserDraggingSlider = false, isSubtitleActive = false;
     let currentSpeedIndex = 0;
@@ -140,8 +141,30 @@
       }
     };
 
+    function measureLatency() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const startTime = performance.now();
+        const onPong = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.action === 'PONG') {
+              const rtt = performance.now() - startTime;
+              estimatedLatency = (rtt / 2) / 1000;
+              ws.removeEventListener('message', onPong);
+            }
+          } catch (e) {}
+        };
+        ws.addEventListener('message', onPong);
+        ws.send(JSON.stringify({ action: 'PING' }));
+      }
+    }
+
     function initWebSocket() {
       ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        measureLatency();
+      };
 
       ws.onmessage = (event) => {
         try {
@@ -154,6 +177,7 @@
             if (data.hasConflict) {
               alert('⚠️ 偵測到已經有其他主控端 (Master) 正在運行中！此視窗已自動切換為跟播端 (Viewer)。');
             }
+            measureLatency();
           }
 
           if (data.action === 'SYNC_STATE' || data.playlist) {
@@ -181,8 +205,11 @@
 
           if (data.action === 'SYNC_TIME' && !myIsMaster && player && isApiReady && typeof player.getCurrentTime === 'function') {
             if (player.getPlayerState() === YT.PlayerState.PLAYING) {
-              const diff = Math.abs(player.getCurrentTime() - data.currentTime);
-              if (diff > 1.5) player.seekTo(data.currentTime, true);
+              const compensatedTime = data.currentTime + estimatedLatency;
+              const diff = Math.abs(player.getCurrentTime() - compensatedTime);
+              if (diff > 0.3) {
+                player.seekTo(compensatedTime, true);
+              }
             }
           }
         } catch (e) {}
@@ -193,6 +220,8 @@
         setTimeout(initWebSocket, 3000);
       };
     }
+
+    setInterval(measureLatency, 10000);
 
     function handleRemoteCommand(cmd) {
       if (cmd === 'togglePlay') togglePlayPause();
@@ -237,7 +266,7 @@
 
     function cyclePlaybackSpeed() {
       if (player && isApiReady && typeof player.setPlaybackRate === 'function') {
-        currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+        currentSpeedIndex = (currentSpeedIndex + 1) * 1 % speeds.length;
         const newSpeed = speeds[currentSpeedIndex];
         player.setPlaybackRate(newSpeed);
         document.getElementById('speedBtn').textContent = `${newSpeed}x`;
@@ -269,7 +298,7 @@
             ws.send(JSON.stringify({ action: 'SYNC_TIME', currentTime: cur, duration: dur }));
           }
         }
-      }, 500);
+      }, 200);
     }
 
     function formatTime(seconds) {
