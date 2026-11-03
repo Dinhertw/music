@@ -23,7 +23,7 @@
     .time-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; cursor: pointer; }
     .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #4facfe; cursor: pointer; }
     .rc-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #fff; padding: 8px 12px; font-size: 13px; font-weight: bold; transition: all 0.2s; }
-    .rc-btn:active { transform: scale(0.95); background: rgba(79, 172, 254, 0.3); border-color: #4facfe; }
+    .rc-btn:active, .rc-btn.active { transform: scale(0.95); background: rgba(79, 172, 254, 0.3); border-color: #4facfe; }
   </style>
 </head>
 <body class="flex flex-col h-full">
@@ -75,7 +75,6 @@
   </footer>
 
   <script>
-    // --- 解析 ?room=xxx 支援分房 ---
     const urlParams = new URLSearchParams(window.location.search);
     const room = urlParams.get('room') || 'default_room';
     document.getElementById('roomTitle').textContent = `Remote (${room})`;
@@ -92,6 +91,10 @@
     const timeSlider = document.getElementById('timeSlider');
     const currentTimeEl = document.getElementById('currentTime');
     const durationTimeEl = document.getElementById('durationTime');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const speedBtn = document.getElementById('speedBtn');
+    const subBtn = document.getElementById('subBtn');
+    const hideBtn = document.getElementById('hideBtn');
 
     const Toast = Swal.mixin({
       toast: true, position: 'top', showConfirmButton: false, timer: 2000, timerProgressBar: true,
@@ -127,6 +130,10 @@
             if (data.playlist) playlist = data.playlist;
             if (data.history) historyList = data.history;
             renderLists();
+
+            if (data.playerState) {
+              updateRemoteUIState(data.playerState);
+            }
           }
 
           if (data.action === 'SYNC_TIME') {
@@ -149,10 +156,24 @@
       };
     }
 
+    function updateRemoteUIState(state) {
+      if (typeof state.isPlaying === 'boolean') {
+        playPauseBtn.textContent = state.isPlaying ? '暫停' : '播放';
+      }
+      if (typeof state.speed === 'number') {
+        speedBtn.textContent = state.speed + 'x';
+      }
+      if (typeof state.isSubtitleActive === 'boolean') {
+        subBtn.classList.toggle('active', state.isSubtitleActive);
+      }
+      if (typeof state.isAutoHiderEnabled === 'boolean') {
+        hideBtn.classList.toggle('active', state.isAutoHiderEnabled);
+      }
+    }
+
     function sendRemoteCommand(cmd) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'REMOTE_CMD', command: cmd }));
-        showToast('已發送指令: ' + cmd, 'info');
       }
     }
 
