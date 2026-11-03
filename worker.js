@@ -37,10 +37,19 @@ export class MyDurableObject {
     this.env = env;
     this.playlist = [];
     this.history = [];
+    // 記住房間整體的播放控制狀態 (速度、字幕、自動隱藏、是否播放中)
+    this.playerState = {
+      isPlaying: true,
+      speed: 1.0,
+      isSubtitleActive: false,
+      isAutoHiderEnabled: false
+    };
 
     this.state.blockConcurrencyWhile(async () => {
       this.playlist = (await this.state.storage.get("playlist")) || [];
       this.history = (await this.state.storage.get("history")) || [];
+      const savedState = await this.state.storage.get("playerState");
+      if (savedState) this.playerState = savedState;
     });
   }
 
@@ -53,25 +62,15 @@ export class MyDurableObject {
 
       this.state.acceptWebSocket(server);
 
+      // 新連線時同步完整狀態
       server.send(JSON.stringify({
         action: "SYNC_STATE",
         playlist: this.playlist,
-        history: this.history
+        history: this.history,
+        playerState: this.playerState
       }));
 
       return new Response(null, { status: 101, webSocket: client });
-    }
-
-    if (request.method === "POST") {
-      try {
-        const body = await request.json();
-        await this.handleAction(body.action, body, null);
-        return new Response(JSON.stringify({ success: true, playlist: this.playlist, history: this.history }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-        });
-      } catch (e) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 400 });
-      }
     }
 
     return new Response("Karaoke Room Active", { status: 200 });
@@ -129,11 +128,13 @@ export class MyDurableObject {
       this.history = [];
       changed = true;
     }
-    else if (action === "syncPlaylist" && Array.isArray(payload.playlist)) {
-      this.playlist = payload.playlist;
-      changed = true;
+    // 更新並廣播播放器狀態 (速度、字幕、自動隱藏、播放暫停)
+    else if (action === "UPDATE_PLAYER_STATE") {
+      this.playerState = { ...this.playerState, ...payload.state };
+      await this.state.storage.put("playerState", this.playerState);
+      this.broadcastState(senderWs);
+      return;
     }
-    // 遠端控制指令與時間同步直接廣播給房內其他連線
     else if (action === "REMOTE_CMD" || action === "SEEK_TIME" || action === "SYNC_TIME") {
       this.broadcastMessage(payload, senderWs);
       return;
@@ -142,7 +143,7 @@ export class MyDurableObject {
     if (changed) {
       await this.state.storage.put("playlist", this.playlist);
       await this.state.storage.put("history", this.history);
-      this.broadcastState();
+      this.broadcastState(null);
     }
   }
 
@@ -155,15 +156,18 @@ export class MyDurableObject {
     }
   }
 
-  broadcastState() {
+  broadcastState(senderWs) {
     const data = JSON.stringify({
       action: "SYNC_STATE",
       playlist: this.playlist,
-      history: this.history
+      history: this.history,
+      playerState: this.playerState
     });
 
     for (const ws of this.state.getWebSockets()) {
-      try { ws.send(data); } catch (e) { ws.close(); }
+      if (ws !== senderWs) {
+        try { ws.send(data); } catch (e) { ws.close(); }
+      }
     }
   }
 }
