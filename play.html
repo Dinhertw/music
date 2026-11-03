@@ -34,17 +34,12 @@
     .playlist-wrapper { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; width: 320px; max-height: calc(100vh - 40px); }
     .playlist-btn-container { width: 120px; height: 40px; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: width 0.3s ease, background-color 0.3s ease, border-color 0.3s ease; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.4); flex-shrink: 0; }
     .playlist-btn-container.expanded { width: 320px; background-color: rgba(0, 0, 0, 0.85); border-color: #4facfe; }
-    .playlist-btn-container.error-shake { animation: shake 0.4s ease-in-out; border-color: #ff4d4d !important; background-color: rgba(255, 0, 0, 0.4) !important; }
-    @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
     .btn-label { font-size: 16px; font-weight: bold; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.6); user-select: none; }
     .url-input { width: 100%; height: 100%; background: transparent; border: none; outline: none; color: #fff; padding: 0 15px; font-size: 14px; display: none; }
     .playlist-btn-container.expanded .btn-label { display: none; }
     .playlist-btn-container.expanded .url-input { display: block; }
     .song-list { margin-top: 15px; width: 100%; max-height: calc(100vh - 100px); display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; }
-    .song-item-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: transparent; transition: background-color 0.3s ease; flex-shrink: 0; }
-    .song-item { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); border-radius: 8px; padding: 8px 12px; font-size: 14px; overflow: hidden; white-space: nowrap; border-left: 3px solid #4facfe; position: relative; z-index: 2; cursor: grab; user-select: none; touch-action: pan-y; }
-    .marquee { display: inline-block; white-space: nowrap; will-change: transform; animation: marquee 10s linear infinite; }
-    @keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
+    .song-item { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); border-radius: 8px; padding: 8px 12px; font-size: 14px; overflow: hidden; white-space: nowrap; border-left: 3px solid #4facfe; position: relative; z-index: 2; user-select: none; }
     .bottom-container { display: flex; justify-content: center; width: 100%; margin-bottom: 10px; position: relative; z-index: 6; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease; }
     .bottom-container.auto-hidden { transform: translateY(120px); opacity: 0; pointer-events: none; }
     .control-bar { display: flex; flex-direction: column; align-items: center; gap: 10px; background-color: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 16px; padding: 12px 24px; width: fit-content; box-shadow: 0 4px 10px rgba(0,0,0,0.4); user-select: none; }
@@ -52,12 +47,9 @@
     .time-slider { -webkit-appearance: none; appearance: none; width: 280px; height: 4px; background: rgba(255, 255, 255, 0.3); border-radius: 2px; outline: none; cursor: pointer; }
     .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #4facfe; cursor: pointer; }
     .buttons-container { display: flex; align-items: center; gap: 10px; }
-    .control-btn { background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; color: #fff; padding: 6px 16px; font-size: 13px; font-weight: bold; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.5); transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease; }
+    .control-btn { background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; color: #fff; padding: 6px 16px; font-size: 13px; font-weight: bold; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.5); transition: background 0.2s ease, border-color 0.2s ease; }
     .control-btn:hover { background: rgba(255, 255, 255, 0.3); border-color: #4facfe; }
     .control-btn.active { background: rgba(79, 172, 254, 0.4); border-color: #4facfe; }
-    .mobile-playlist-modal { position: absolute; top: 70px; right: 12px; width: calc(100vw - 24px); max-width: 320px; max-height: 50vh; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 14px; padding: 12px; display: none; flex-direction: column; gap: 8px; z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
-    .mobile-playlist-modal.active { display: flex; }
-    .modal-header { font-size: 13px; font-weight: bold; color: rgba(255, 255, 255, 0.7); padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.15); display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body id="app-body">
@@ -73,21 +65,15 @@
         <input type="text" class="url-input" id="urlInput" placeholder="請輸入YT連結 (Enter送出)">
       </div>
       <div class="song-list" id="songList"></div>
-      <div class="mobile-playlist-modal" id="mobilePlaylistModal">
-        <div class="modal-header">
-          <span>播放清單管理 (雲端同步)</span>
-        </div>
-        <div class="song-list" id="mobileSongList" style="display: flex !important; max-height: 40vh;"></div>
-      </div>
     </div>
     <div class="bottom-detector" id="bottomDetector"></div>
     <div class="bottom-container" id="bottomContainer">
       <div class="history-modal" id="historyModal">
-        <div class="modal-header">
+        <div class="modal-header" style="font-size:13px; font-weight:bold; color:rgba(255,255,255,0.7); padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.15); display:flex; justify-content:space-between; align-items:center;">
           <span>歷史播放紀錄</span>
           <span style="font-size: 11px; color: #4facfe; cursor: pointer;" id="closeHistory">關閉</span>
         </div>
-        <div class="history-list" id="historyList"></div>
+        <div class="history-list" id="historyList" style="margin-top:8px;"></div>
       </div>
       <div class="feature-menu" id="featureMenu">
         <button class="feature-option" id="autoHideBtn">自動隱藏介面: 關閉</button>
@@ -113,7 +99,6 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // --- 解析 ?room=xxx 支援分房 ---
     const urlParams = new URLSearchParams(window.location.search);
     const room = urlParams.get('room') || 'default_room';
 
@@ -124,20 +109,17 @@
     let player;
     let playlist = [];
     let playHistory = [];
-    let isPlaying = false;
+    let isPlaying = true;
     let isApiReady = false;
     let isUserDraggingSlider = false;
     let isSubtitleActive = false;
     let timeUpdateInterval = null;
-    let currentSpeedIndex = 0;
+    let currentSpeed = 1.0;
     const speeds = [1.0, 1.25, 1.5, 2.0, 0.5];
+
     let isAutoHiderEnabled = false;
     let autoHideTimer = null;
     const AUTO_HIDE_DELAY = 3000;
-
-    const languageMap = {
-      'zh-Hant': '繁體中文', 'zh-Hans': '簡體中文', 'en': '英文', 'ja': '日文', 'ko': '韓文'
-    };
 
     const urlInput = document.getElementById('urlInput');
     const inputContainer = document.getElementById('inputContainer');
@@ -187,16 +169,18 @@
                 playlistBtnLabel.textContent = '播放列表';
               }
             }
+
+            // 同步遠端傳來的播放器控制狀態 (倍速、字幕、自動隱藏、播放狀態)
+            if (data.playerState) {
+              applyPlayerState(data.playerState);
+            }
           } 
-          // 接收來自遙控器的控制指令
           else if (data.action === 'REMOTE_CMD') {
             handleRemoteCommand(data.command);
           } 
-          // 接收來自遙控器的進度軸跳轉
           else if (data.action === 'SEEK_TIME') {
             if (player && isApiReady && typeof player.getDuration === 'function') {
-              const dur = player.getDuration();
-              player.seekTo((data.percent / 100) * dur, true);
+              player.seekTo((data.percent / 100) * player.getDuration(), true);
             }
           }
         } catch (e) {}
@@ -208,18 +192,58 @@
       };
     }
 
-    function handleRemoteCommand(cmd) {
-      if (cmd === 'togglePlay') togglePlayPause();
-      if (cmd === 'skip') skipToNextSong();
-      if (cmd === 'speed') cyclePlaybackSpeed();
-      if (cmd === 'subtitle') toggleSubtitleMode();
-      if (cmd === 'autohide') {
-        isAutoHiderEnabled = !isAutoHiderEnabled;
+    // 將後端的玩家狀態套用到大螢幕 UI 與播放器上
+    function applyPlayerState(state) {
+      if (typeof state.isPlaying === 'boolean' && player && isApiReady) {
+        isPlaying = state.isPlaying;
+        playPauseBtn.textContent = isPlaying ? '暫停' : '播放';
+        if (isPlaying) player.playVideo(); else player.pauseVideo();
+      }
+      if (typeof state.speed === 'number' && player && isApiReady) {
+        currentSpeed = state.speed;
+        speedBtn.textContent = currentSpeed + 'x';
+        player.setPlaybackRate(currentSpeed);
+      }
+      if (typeof state.isSubtitleActive === 'boolean' && isSubtitleActive !== state.isSubtitleActive) {
+        isSubtitleActive = state.isSubtitleActive;
+        updateSubtitleUIState();
+      }
+      if (typeof state.isAutoHiderEnabled === 'boolean' && isAutoHiderEnabled !== state.isAutoHiderEnabled) {
+        isAutoHiderEnabled = state.isAutoHiderEnabled;
+        autoHideBtn.textContent = isAutoHiderEnabled ? '自動隱藏介面: 開啟' : '自動隱藏介面: 關閉';
+        autoHideBtn.classList.toggle('active-state', isAutoHiderEnabled);
         if (!isAutoHiderEnabled) bottomContainer.classList.remove('auto-hidden');
       }
     }
 
-    // 定期向後端廣播目前播放時間 (讓多個控制端同步進度條)
+    function broadcastPlayerState() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          action: 'UPDATE_PLAYER_STATE',
+          state: {
+            isPlaying: isPlaying,
+            speed: currentSpeed,
+            isSubtitleActive: isSubtitleActive,
+            isAutoHiderEnabled: isAutoHiderEnabled
+          }
+        }));
+      }
+    }
+
+    function handleRemoteCommand(cmd) {
+      if (cmd === 'togglePlay') togglePlayPause(false);
+      if (cmd === 'skip') skipToNextSong();
+      if (cmd === 'speed') cyclePlaybackSpeed(false);
+      if (cmd === 'subtitle') toggleSubtitleMode(false);
+      if (cmd === 'autohide') {
+        isAutoHiderEnabled = !isAutoHiderEnabled;
+        autoHideBtn.textContent = isAutoHiderEnabled ? '自動隱藏介面: 開啟' : '自動隱藏介面: 關閉';
+        autoHideBtn.classList.toggle('active-state', isAutoHiderEnabled);
+        if (!isAutoHiderEnabled) bottomContainer.classList.remove('auto-hidden');
+        broadcastPlayerState();
+      }
+    }
+
     function startTimeTracker() {
       if (timeUpdateInterval) clearInterval(timeUpdateInterval);
       timeUpdateInterval = setInterval(() => {
@@ -233,49 +257,30 @@
           }
 
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              action: 'SYNC_TIME',
-              currentTime: currentTime,
-              duration: duration
-            }));
+            ws.send(JSON.stringify({ action: 'SYNC_TIME', currentTime, duration }));
           }
         }
       }, 500);
     }
 
-    inputContainer.onclick = () => {
-      inputContainer.classList.add('expanded');
-      urlInput.focus();
-    };
+    inputContainer.onclick = () => { inputContainer.classList.add('expanded'); urlInput.focus(); };
+    urlInput.onkeydown = (e) => { if (e.key === 'Enter' && urlInput.value.trim()) processYouTubeUrl(urlInput.value.trim()); };
 
-    urlInput.onkeydown = (e) => {
-      if (e.key === 'Enter' && urlInput.value.trim()) {
-        processYouTubeUrl(urlInput.value.trim());
-      }
-    };
-
-    playPauseBtn.onclick = togglePlayPause;
+    playPauseBtn.onclick = () => togglePlayPause(true);
     skipBtn.onclick = skipToNextSong;
-    speedBtn.onclick = cyclePlaybackSpeed;
+    speedBtn.onclick = () => cyclePlaybackSpeed(true);
 
-    featureBtn.onclick = () => {
-      featureMenu.classList.toggle('active');
-      subtitleMenu.classList.remove('active');
-    };
-
+    featureBtn.onclick = () => { featureMenu.classList.toggle('active'); subtitleMenu.classList.remove('active'); };
     autoHideBtn.onclick = () => {
       isAutoHiderEnabled = !isAutoHiderEnabled;
       autoHideBtn.textContent = isAutoHiderEnabled ? '自動隱藏介面: 開啟' : '自動隱藏介面: 關閉';
       autoHideBtn.classList.toggle('active-state', isAutoHiderEnabled);
       featureMenu.classList.remove('active');
+      if (!isAutoHiderEnabled) bottomContainer.classList.remove('auto-hidden');
+      broadcastPlayerState();
     };
 
-    historyBtn.onclick = () => {
-      featureMenu.classList.remove('active');
-      renderHistoryUI();
-      historyModal.classList.toggle('active');
-    };
-
+    historyBtn.onclick = () => { featureMenu.classList.remove('active'); renderHistoryUI(); historyModal.classList.toggle('active'); };
     closeHistory.onclick = () => historyModal.classList.remove('active');
 
     bottomDetector.onmouseenter = wakeUpUI;
@@ -288,7 +293,7 @@
       autoHideTimer = setTimeout(() => bottomContainer.classList.add('auto-hidden'), AUTO_HIDE_DELAY);
     }
 
-    subtitleBtn.onclick = toggleSubtitleMode;
+    subtitleBtn.onclick = () => toggleSubtitleMode(true);
 
     timeSlider.onmousedown = () => { isUserDraggingSlider = true; };
     timeSlider.oninput = (e) => {
@@ -326,6 +331,7 @@
         if (!curData || curData.video_id !== playlist[0].id) {
           player.loadVideoById(playlist[0].id);
           player.playVideo();
+          player.setPlaybackRate(currentSpeed);
         }
         updateCurrentSongDisplay();
       } else {
@@ -344,36 +350,47 @@
       }
     }
 
-    function togglePlayPause() {
+    function togglePlayPause(broadcast) {
       if (!player || playlist.length === 0) return;
       if (player.getPlayerState() === YT.PlayerState.PLAYING) {
         player.pauseVideo();
+        isPlaying = false;
         playPauseBtn.textContent = '播放';
       } else {
         player.playVideo();
+        isPlaying = true;
         playPauseBtn.textContent = '暫停';
       }
+      if (broadcast) broadcastPlayerState();
     }
 
-    function cyclePlaybackSpeed() {
+    function cyclePlaybackSpeed(broadcast) {
       if (player && isApiReady) {
         currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
-        const s = speeds[currentSpeedIndex];
-        player.setPlaybackRate(s);
-        speedBtn.textContent = s + 'x';
+        currentSpeed = speeds[currentSpeedIndex];
+        player.setPlaybackRate(currentSpeed);
+        speedBtn.textContent = currentSpeed + 'x';
+        if (broadcast) broadcastPlayerState();
       }
     }
 
-    function toggleSubtitleMode() {
+    function toggleSubtitleMode(broadcast) {
       isSubtitleActive = !isSubtitleActive;
+      updateSubtitleUIState();
+      if (broadcast) broadcastPlayerState();
+    }
+
+    function updateSubtitleUIState() {
       if (player && isApiReady) {
         if (isSubtitleActive) {
           player.loadModule('captions');
           player.setOption('captions', 'track', { languageCode: 'zh-Hant' });
           playerContainer.classList.add('subtitle-active');
+          subtitleBtn.classList.add('active');
         } else {
           player.unloadModule('captions');
           playerContainer.classList.remove('subtitle-active');
+          subtitleBtn.classList.remove('active');
         }
       }
     }
