@@ -170,7 +170,6 @@
               }
             }
 
-            // 同步遠端傳來的播放器控制狀態 (倍速、字幕、自動隱藏、播放狀態)
             if (data.playerState) {
               applyPlayerState(data.playerState);
             }
@@ -192,7 +191,6 @@
       };
     }
 
-    // 將後端的玩家狀態套用到大螢幕 UI 與播放器上
     function applyPlayerState(state) {
       if (typeof state.isPlaying === 'boolean' && player && isApiReady) {
         isPlaying = state.isPlaying;
@@ -231,10 +229,10 @@
     }
 
     function handleRemoteCommand(cmd) {
-      if (cmd === 'togglePlay') togglePlayPause(false);
+      if (cmd === 'togglePlay') togglePlayPause(true);
       if (cmd === 'skip') skipToNextSong();
-      if (cmd === 'speed') cyclePlaybackSpeed(false);
-      if (cmd === 'subtitle') toggleSubtitleMode(false);
+      if (cmd === 'speed') cyclePlaybackSpeed(true);
+      if (cmd === 'subtitle') toggleSubtitleMode(true);
       if (cmd === 'autohide') {
         isAutoHiderEnabled = !isAutoHiderEnabled;
         autoHideBtn.textContent = isAutoHiderEnabled ? '自動隱藏介面: 開啟' : '自動隱藏介面: 關閉';
@@ -366,8 +364,10 @@
 
     function cyclePlaybackSpeed(broadcast) {
       if (player && isApiReady) {
-        currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
-        currentSpeed = speeds[currentSpeedIndex];
+        const currentIndex = speeds.indexOf(currentSpeed);
+        const nextIndex = (currentIndex + 1) % speeds.length;
+        currentSpeed = speeds[nextIndex];
+        
         player.setPlaybackRate(currentSpeed);
         speedBtn.textContent = currentSpeed + 'x';
         if (broadcast) broadcastPlayerState();

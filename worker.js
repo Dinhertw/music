@@ -37,7 +37,6 @@ export class MyDurableObject {
     this.env = env;
     this.playlist = [];
     this.history = [];
-    // 記住房間整體的播放控制狀態 (速度、字幕、自動隱藏、是否播放中)
     this.playerState = {
       isPlaying: true,
       speed: 1.0,
@@ -62,7 +61,6 @@ export class MyDurableObject {
 
       this.state.acceptWebSocket(server);
 
-      // 新連線時同步完整狀態
       server.send(JSON.stringify({
         action: "SYNC_STATE",
         playlist: this.playlist,
@@ -128,7 +126,6 @@ export class MyDurableObject {
       this.history = [];
       changed = true;
     }
-    // 更新並廣播播放器狀態 (速度、字幕、自動隱藏、播放暫停)
     else if (action === "UPDATE_PLAYER_STATE") {
       this.playerState = { ...this.playerState, ...payload.state };
       await this.state.storage.put("playerState", this.playerState);
