@@ -1029,21 +1029,13 @@
               const oldFirstId = playlist.length > 0 ? playlist[0].id : null;
               playlist = data.playlist;
               playHistory = data.history || [];
-              
-              // 檢查：如果同步過來的播放列表為空，則自動發送加入預設影片請求
-              if (playlist.length === 0) {
-                processYouTubeUrl('https://youtu.be/CvsrR7D96OE');
-                return;
-              }
-
               updatePlaylistUI();
 
               if (playlist.length > 0) {
                 if (playlist[0].id !== oldFirstId) checkAndPlayNext();
               } else {
-                if (player && isApiReady && typeof player.stopVideo === 'function') player.stopVideo();
-                updateTitleDisplay('Qimei Music Web (' + room + ')');
-                playlistBtnLabel.textContent = '播放列表';
+                // 播放列表為空時，不寫入清單，直接在背景播放預設影片
+                playDefaultBackgroundVideo();
               }
             }
 
@@ -1166,6 +1158,19 @@
       }
     }
 
+    function playDefaultBackgroundVideo() {
+      if (isApiReady && player && typeof player.loadVideoById === 'function') {
+        const curData = player.getVideoData ? player.getVideoData() : null;
+        if (!curData || curData.video_id !== 'CvsrR7D96OE') {
+          player.loadVideoById('CvsrR7D96OE');
+          player.playVideo();
+          player.setPlaybackRate(currentSpeed);
+        }
+        updateTitleDisplay('Qimei Music Web (' + room + ')');
+        playlistBtnLabel.textContent = '播放列表';
+      }
+    }
+
     function checkAndPlayNext() {
       if (playlist.length > 0 && isApiReady && player && typeof player.loadVideoById === 'function') {
         isPlaying = true;
@@ -1182,8 +1187,7 @@
           player.unloadModule('captions');
         }
       } else {
-        // 如果本地檢查時發現列表為空，自動補上預設影片
-        processYouTubeUrl('https://youtu.be/CvsrR7D96OE');
+        playDefaultBackgroundVideo();
       }
     }
 
@@ -1386,6 +1390,28 @@
       return (match && match[2].length === 11) ? match[2] : null;
     }
 
+    async function processYouTubeUrl(url) {
+      const videoId = extractVideoId(url);
+      if (!videoId) {
+        triggerErrorAnimation();
+        return;
+      }
+
+      const { title: videoTitle, durationStr } = await fetchVideoDetails(videoId);
+      collapseInput();
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          action: 'addSong',
+          song: {
+            id: videoId,
+            title: videoTitle,
+            videoDuration: durationStr
+          }
+        }));
+      }
+    }
+
     async function fetchVideoDetails(videoId) {
       let title = `YouTube Track (${videoId})`;
       let durationStr = '03:30';
@@ -1408,115 +1434,7 @@
         } catch (e) {}
       }
 
-      durationStr = await fetchDurationInBackground(videoId);
       return { title, durationStr };
-    }
-
-    function fetchDurationInBackground(videoId) {
-      return new Promise((resolve) => {
-        if (player && isApiReady && typeof player.getDuration === 'function' && playlist.length > 0 && playlist[0].id === videoId) {
-          const d = player.getDuration();
-          if (d > 0) {
-            resolve(formatTime(d));
-            return;
-          }
-        }
-
-        const tempDivId = 'temp_duration_getter_' + Date.now();
-        const div = document.createElement('div');
-        div.id = tempDivId;
-        div.style.display = 'none';
-        document.body.appendChild(div);
-
-        let tempPlayer;
-        let resolved = false;
-
-        const cleanup = () => {
-          if (!resolved) {
-            resolved = true;
-            try {
-              if (tempPlayer && typeof tempPlayer.destroy === 'function') tempPlayer.destroy();
-            } catch (err) {}
-            if (div.parentNode) div.parentNode.removeChild(div);
-            resolve('03:30');
-          }
-        };
-
-        const timeoutTimer = setTimeout(cleanup, 5000);
-
-        try {
-          tempPlayer = new YT.Player(tempDivId, {
-            height: '1',
-            width: '1',
-            videoId: videoId,
-            playerVars: { 'autoplay': 0, 'controls': 0 },
-            events: {
-              'onReady': (event) => {
-                try {
-                  const dur = event.target.getDuration();
-                  if (dur && dur > 0) {
-                    if (!resolved) {
-                      resolved = true;
-                      clearTimeout(timeoutTimer);
-                      const formatted = formatTime(dur);
-                      try { event.target.destroy(); } catch (e) {}
-                      if (div.parentNode) div.parentNode.removeChild(div);
-                      resolve(formatted);
-                    }
-                  } else {
-                    setTimeout(() => {
-                      try {
-                        const d2 = event.target.getDuration();
-                        if (!resolved) {
-                          resolved = true;
-                          clearTimeout(timeoutTimer);
-                          const formatted2 = (d2 && d2 > 0) ? formatTime(d2) : '03:30';
-                          try { event.target.destroy(); } catch (e) {}
-                          if (div.parentNode) div.parentNode.removeChild(div);
-                          resolve(formatted2);
-                        }
-                      } catch (err) {
-                        cleanup();
-                      }
-                    }, 1000);
-                  }
-                } catch (err) {
-                  cleanup();
-                }
-              },
-              'onError': () => {
-                clearTimeout(timeoutTimer);
-                cleanup();
-              }
-            }
-          });
-        } catch (e) {
-          clearTimeout(timeoutTimer);
-          cleanup();
-        }
-      });
-    }
-
-    async function processYouTubeUrl(url) {
-      const videoId = extractVideoId(url);
-      if (!videoId) {
-        triggerErrorAnimation();
-        return;
-      }
-
-      const { title: videoTitle, durationStr } = await fetchVideoDetails(videoId);
-      collapseInput();
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          action: 'addSong',
-          song: {
-            id: videoId,
-            title: videoTitle,
-            videoDuration: durationStr
-          }
-        }));
-      }
     }
 
     function renderHistoryUI() {
