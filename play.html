@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Qimei Music Web (Cloud Sync)</title>
+  <!-- 引入 QR Code 生成套件 qrcodejs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -89,7 +91,7 @@
       align-items: center;
       gap: 10px;
       width: fit-content;
-      max-width: calc(100vw - 360px); /* 避免跟右側播放列表按鈕重疊 */
+      max-width: calc(100vw - 360px);
     }
 
     .header-title-wrapper {
@@ -113,7 +115,6 @@
       display: inline-block;
     }
 
-    /* 超過寬度時自動啟動跑馬燈 */
     .header-title.marquee-enabled {
       display: inline-block;
       white-space: nowrap;
@@ -193,7 +194,8 @@
       font-weight: bold;
     }
 
-    .history-modal {
+    /* 共用彈窗基礎樣式 (歷史紀錄 / 分享面板) */
+    .history-modal, .share-modal {
       position: absolute;
       bottom: 130px;
       left: 20px;
@@ -201,17 +203,16 @@
       backdrop-filter: blur(15px);
       border: 1px solid rgba(255, 255, 255, 0.3);
       border-radius: 14px;
-      padding: 12px;
+      padding: 14px;
       width: 320px;
-      max-height: 350px;
       display: none;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       z-index: 25;
       box-shadow: 0 10px 30px rgba(0,0,0,0.7);
     }
 
-    .history-modal.active {
+    .history-modal.active, .share-modal.active {
       display: flex;
     }
 
@@ -255,6 +256,54 @@
       color: rgba(255, 255, 255, 0.6);
       display: flex;
       justify-content: space-between;
+    }
+
+    /* 分享面板專屬樣式 */
+    .share-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 5px 0;
+    }
+
+    #qrcodeContainer {
+      background: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .share-url-box {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      word-break: break-all;
+      text-align: center;
+      user-select: all;
+    }
+
+    .copy-link-btn {
+      width: 100%;
+      background: #4facfe;
+      border: none;
+      border-radius: 6px;
+      color: #000;
+      font-weight: bold;
+      padding: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .copy-link-btn:hover {
+      background: #00f2fe;
     }
 
     .playlist-wrapper {
@@ -576,7 +625,7 @@
       .buttons-container { width: 100%; justify-content: space-between; flex-wrap: wrap; }
       .control-btn { flex: 1 1 21%; min-width: 60px; padding: 8px 4px; font-size: 12px; text-align: center; }
       .subtitle-menu, .feature-menu { bottom: 125px; right: 12px; width: calc(100vw - 24px); max-width: 240px; }
-      .history-modal { bottom: 125px; left: 12px; width: calc(100vw - 24px); max-width: 300px; }
+      .history-modal, .share-modal { bottom: 125px; left: 12px; width: calc(100vw - 24px); max-width: 300px; }
     }
   </style>
 </head>
@@ -624,14 +673,28 @@
         <div class="history-list" id="historyList"></div>
       </div>
 
+      <!-- 分享遙控器彈窗 -->
+      <div class="share-modal" id="shareModal">
+        <div class="modal-header">
+          <span>手機遙控器分享</span>
+          <span style="font-size: 11px; color: #4facfe; cursor: pointer;" id="closeShare">關閉</span>
+        </div>
+        <div class="share-content">
+          <div id="qrcodeContainer"></div>
+          <div class="share-url-box" id="shareUrlText"></div>
+          <button class="copy-link-btn" id="copyLinkBtn">複製遙控連結</button>
+        </div>
+      </div>
+
       <div class="feature-menu" id="featureMenu">
         <button class="feature-option" id="autoHideBtn">自動隱藏介面: 關閉</button>
         <button class="feature-option" id="historyBtn">歷史播放清單</button>
+        <button class="feature-option" id="shareBtn">分享遙控器 QR Code</button>
       </div>
       <div class="subtitle-menu" id="subtitleMenu"></div>
 
       <div class="control-bar">
-        <div class="timeline-container">文字
+        <div class="timeline-container">
           <span id="currentTime">00:00</span>
           <input type="range" id="timeSlider" class="time-slider" value="0" min="0" max="100" step="0.1">
           <span id="durationTime">00:00</span>
@@ -694,6 +757,16 @@
     const historyModal = document.getElementById('historyModal');
     const historyList = document.getElementById('historyList');
     const closeHistory = document.getElementById('closeHistory');
+    
+    // 分享面板相關元素
+    const shareBtn = document.getElementById('shareBtn');
+    const shareModal = document.getElementById('shareModal');
+    const closeShare = document.getElementById('closeShare');
+    const qrcodeContainer = document.getElementById('qrcodeContainer');
+    const shareUrlText = document.getElementById('shareUrlText');
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    let qrCodeInstance = null;
+
     const subtitleBtn = document.getElementById('subtitleBtn');
     const subtitleMenu = document.getElementById('subtitleMenu');
     const mobilePlaylistModal = document.getElementById('mobilePlaylistModal');
@@ -785,10 +858,55 @@
       featureMenu.classList.remove('active');
       renderHistoryUI();
       historyModal.classList.toggle('active');
+      shareModal.classList.remove('active');
     });
 
     closeHistory.addEventListener('click', () => {
       historyModal.classList.remove('active');
+    });
+
+    // 點擊分享按鈕
+    shareBtn.addEventListener('click', () => {
+      featureMenu.classList.remove('active');
+      historyModal.classList.remove('active');
+      shareModal.classList.toggle('active');
+
+      // 組合控制頁面完整網址 (對應 /control?room=xxxx)
+      const controlUrl = `${window.location.origin}/control?room=${encodeURIComponent(room)}`;
+      shareUrlText.textContent = controlUrl;
+
+      // 生成 QR Code
+      qrcodeContainer.innerHTML = '';
+      qrCodeInstance = new QRCode(qrcodeContainer, {
+        text: controlUrl,
+        width: 150,
+        height: 150,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    });
+
+    closeShare.addEventListener('click', () => {
+      shareModal.classList.remove('active');
+    });
+
+    // 一鍵複製控制連結
+    copyLinkBtn.addEventListener('click', () => {
+      const controlUrl = shareUrlText.textContent;
+      navigator.clipboard.writeText(controlUrl).then(() => {
+        const originalText = copyLinkBtn.textContent;
+        copyLinkBtn.textContent = '✅ 複製成功！';
+        copyLinkBtn.style.background = '#22c55e';
+        copyLinkBtn.style.color = '#fff';
+        setTimeout(() => {
+          copyLinkBtn.textContent = originalText;
+          copyLinkBtn.style.background = '#4facfe';
+          copyLinkBtn.style.color = '#000';
+        }, 2000);
+      }).catch(() => {
+        alert('複製失敗，請手動選取複製');
+      });
     });
 
     bottomDetector.addEventListener('mouseenter', () => {
@@ -829,7 +947,7 @@
       if (!isAutoHiderEnabled) return;
       if (autoHideTimer) clearTimeout(autoHideTimer);
       autoHideTimer = setTimeout(() => {
-        if (featureMenu.classList.contains('active') || historyModal.classList.contains('active') || subtitleMenu.classList.contains('active') || mobilePlaylistModal.classList.contains('active')) {
+        if (featureMenu.classList.contains('active') || historyModal.classList.contains('active') || shareModal.classList.contains('active') || subtitleMenu.classList.contains('active') || mobilePlaylistModal.classList.contains('active')) {
           resetAutoHideTimer();
           return;
         }
@@ -870,7 +988,7 @@
       if (!subtitleBtn.contains(e.target) && !subtitleMenu.contains(e.target)) {
         subtitleMenu.classList.remove('active');
       }
-      if (!featureBtn.contains(e.target) && !featureMenu.contains(e.target) && !historyModal.contains(e.target)) {
+      if (!featureBtn.contains(e.target) && !featureMenu.contains(e.target) && !historyModal.contains(e.target) && !shareModal.contains(e.target)) {
         featureMenu.classList.remove('active');
       }
     });
@@ -1062,12 +1180,10 @@
       }
     }
 
-    // 智能標題更新與跑馬燈判定
     function updateTitleDisplay(titleText) {
       headerTitle.textContent = titleText;
       headerTitle.classList.remove('marquee-enabled');
       
-      // 動態判定當文字超出容器寬度時自動啟動跑馬燈
       setTimeout(() => {
         if (headerTitle.scrollWidth > headerTitle.parentElement.clientWidth) {
           headerTitle.classList.add('marquee-enabled');
@@ -1182,6 +1298,7 @@
         featureMenu.classList.remove('active');
         mobilePlaylistModal.classList.remove('active');
         historyModal.classList.remove('active');
+        shareModal.classList.remove('active');
       }
     });
 
