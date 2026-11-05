@@ -638,7 +638,7 @@
   <div class="ui-layer" id="uiLayer">
     <div class="header-title-container">
       <div class="header-title-wrapper">
-        <div class="header-title" id="headerTitle">Qimei Music Web</div>
+        <div class="header-title" id="headerTitle">No Media</div>
       </div>
       <div class="sync-indicator" id="syncIndicator" title="雲端同步狀態"></div>
     </div>
@@ -1034,7 +1034,6 @@
               if (playlist.length > 0) {
                 if (playlist[0].id !== oldFirstId) checkAndPlayNext();
               } else {
-                // 播放列表為空時，不寫入清單，直接在背景播放預設影片
                 playDefaultBackgroundVideo();
               }
             }
@@ -1166,7 +1165,7 @@
           player.playVideo();
           player.setPlaybackRate(currentSpeed);
         }
-        updateTitleDisplay('Qimei Music Web (' + room + ')');
+        updateTitleDisplay('No Media');
         playlistBtnLabel.textContent = '播放列表';
       }
     }
@@ -1207,7 +1206,7 @@
         updateTitleDisplay(playlist[0].title);
         playlistBtnLabel.textContent = `播放中 (${playlist.length})`;
       } else {
-        updateTitleDisplay('Qimei Music Web (' + room + ')');
+        updateTitleDisplay('No Media');
         playlistBtnLabel.textContent = '播放列表';
       }
     }
