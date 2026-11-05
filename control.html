@@ -1,1 +1,375 @@
 <!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Qimei Remote Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body, html { width: 100%; height: 100%; background-color: #0f172a; color: #fff; font-family: Arial, "Microsoft JhengHei", sans-serif; overflow: hidden; }
+    .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .tab-btn.active { background: rgba(79, 172, 254, 0.15); border-bottom: 2px solid #4facfe; color: #4facfe; }
+    .song-item { background: rgba(15, 23, 42, 0.6); border-left: 3px solid #3b82f6; }
+    .song-item.now-playing { background: rgba(79, 172, 254, 0.12); border-left: 4px solid #4facfe; box-shadow: 0 0 15px rgba(79, 172, 254, 0.2); }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #4facfe; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: none; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    .remote-control-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    .time-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; cursor: pointer; }
+    .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #4facfe; cursor: pointer; }
+    .rc-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #fff; padding: 8px 12px; font-size: 13px; font-weight: bold; transition: all 0.2s; }
+    .rc-btn:active, .rc-btn.active { transform: scale(0.95); background: rgba(79, 172, 254, 0.3); border-color: #4facfe; }
+  </style>
+</head>
+<body class="flex flex-col h-full relative">
+  
+  <!-- 自定義 Tailwind 吐司通知 (Toast) -->
+  <div id="toastContainer" class="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none transition-all duration-300 opacity-0 translate-y-[-10px]">
+    <div id="toastBox" class="bg-slate-800/95 border border-white/15 text-white px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-sm font-medium">
+      <span id="toastIcon">✅</span>
+      <span id="toastMsg">提示訊息</span>
+    </div>
+  </div>
+
+  <!-- 自定義 Tailwind 確認對話框 Modal -->
+  <div id="customModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden transition-opacity duration-300">
+    <div class="glass-panel bg-slate-900/90 border border-white/15 rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col gap-4 transform scale-95 transition-transform duration-300" id="modalContent">
+      <div class="flex items-center gap-3">
+        <span id="modalIcon" class="text-2xl">⚠️</span>
+        <div>
+          <h3 id="modalTitle" class="text-base font-bold text-white">確認提示</h3>
+          <p id="modalDesc" class="text-xs text-gray-300 mt-0.5 break-words">詳細說明文字</p>
+        </div>
+      </div>
+      <div class="flex gap-2 justify-end mt-1">
+        <button id="modalCancelBtn" class="px-4 py-2 bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-bold rounded-xl transition-all">取消</button>
+        <button id="modalConfirmBtn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-red-500/20">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <header class="glass-panel p-4 flex flex-col gap-3 shadow-lg z-10 shrink-0">
+    <div class="flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🎵</span>
+        <h1 class="text-lg font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300" id="roomTitle">Qimei Remote</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <div id="syncStatus" class="loader"></div>
+        <span id="connectionBadge" class="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">未連線</span>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <input type="text" id="urlInput" placeholder="貼上 YouTube 網址 / 連結" class="flex-1 bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#4facfe] focus:ring-1 focus:ring-[#4facfe] transition-all placeholder:text-gray-500">
+      <button id="addBtn" onclick="handleAddSong()" class="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 active:scale-95 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 shadow-lg shadow-blue-500/20 flex items-center gap-1"><span>➕</span> 新增</button>
+    </div>
+  </header>
+
+  <div class="flex shrink-0 glass-panel border-t-0">
+    <button id="tabPlaylist" class="tab-btn active flex-1 py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2" onclick="switchTab('playlist')"><span>📋</span> 播放列表</button>
+    <button id="tabHistory" class="tab-btn flex-1 py-3 text-sm font-bold text-gray-400 transition-colors flex items-center justify-center gap-2" onclick="switchTab('history')"><span>📜</span> 歷史紀錄</button>
+  </div>
+
+  <main class="flex-1 overflow-y-auto p-4 relative">
+    <div id="playlistContainer" class="flex flex-col gap-2.5"></div>
+    <div id="historyContainer" class="flex flex-col gap-2.5 hidden">
+      <div class="flex justify-end mb-2">
+        <button onclick="clearAllHistory()" class="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs px-3 py-1.5 rounded-lg font-medium transition-all">🗑️ 刪除所有紀錄</button>
+      </div>
+      <div id="historyListContainer" class="flex flex-col gap-2.5"></div>
+    </div>
+  </main>
+
+  <footer class="remote-control-panel p-3.5 flex flex-col gap-2.5 shrink-0 z-20">
+    <div class="flex items-center gap-2 text-xs text-gray-300">
+      <span id="currentTime">00:00</span>
+      <input type="range" id="timeSlider" class="time-slider flex-1" value="0" min="0" max="100" step="0.1">
+      <span id="durationTime">00:00</span>
+    </div>
+    <div class="grid grid-cols-5 gap-1.5">
+      <button onclick="sendRemoteCommand('togglePlay')" class="rc-btn col-span-1 text-center" id="playPauseBtn">暫停</button>
+      <button onclick="sendRemoteCommand('skip')" class="rc-btn col-span-1 text-center text-cyan-400">切歌</button>
+      <button onclick="sendRemoteCommand('speed')" class="rc-btn col-span-1 text-center" id="speedBtn">1.0x</button>
+      <button onclick="sendRemoteCommand('subtitle')" class="rc-btn col-span-1 text-center" id="subBtn">字幕</button>
+      <button onclick="sendRemoteCommand('autohide')" class="rc-btn col-span-1 text-center text-xs" id="hideBtn">隱介</button>
+    </div>
+  </footer>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const room = urlParams.get('room') || 'default_room';
+    document.getElementById('roomTitle').textContent = `Remote (${room})`;
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const WS_URL = wsProtocol + window.location.host + '/ws?room=' + encodeURIComponent(room);
+    let ws = null;
+    let playlist = [];
+    let historyList = [];
+    let isUserDraggingSlider = false;
+
+    const syncStatus = document.getElementById('syncStatus');
+    const connectionBadge = document.getElementById('connectionBadge');
+    const timeSlider = document.getElementById('timeSlider');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const speedBtn = document.getElementById('speedBtn');
+    const subBtn = document.getElementById('subBtn');
+    const hideBtn = document.getElementById('hideBtn');
+
+    // 原生 Tailwind Toast 實作
+    let toastTimer = null;
+    function showToast(msg, icon = '✅') {
+      const container = document.getElementById('toastContainer');
+      const boxMsg = document.getElementById('toastMsg');
+      const boxIcon = document.getElementById('toastIcon');
+      
+      boxMsg.textContent = msg;
+      boxIcon.textContent = icon === 'success' ? '✅' : icon === 'warning' ? '⚠️' : icon === 'error' ? '❌' : 'ℹ️';
+      
+      container.classList.remove('opacity-0', 'translate-y-[-10px]');
+      container.classList.add('opacity-100', 'translate-y-0');
+
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        container.classList.remove('opacity-100', 'translate-y-0');
+        container.classList.add('opacity-0', 'translate-y-[-10px]');
+      }, 2000);
+    }
+
+    // 原生 Tailwind Modal 實作
+    function showModal({ title, desc, icon = '⚠️', confirmText = '確定', confirmColor = 'bg-red-500 hover:bg-red-600 shadow-red-500/25', showCancel = true, onConfirm }) {
+      const modal = document.getElementById('customModal');
+      const content = document.getElementById('modalContent');
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalDesc').textContent = desc;
+      document.getElementById('modalIcon').textContent = icon;
+      
+      const confirmBtn = document.getElementById('modalConfirmBtn');
+      const cancelBtn = document.getElementById('modalCancelBtn');
+      
+      confirmBtn.textContent = confirmText;
+      confirmBtn.className = `px-4 py-2 text-white text-xs font-bold rounded-xl transition-all shadow-lg ${confirmColor}`;
+      cancelBtn.style.display = showCancel ? 'block' : 'none';
+
+      modal.classList.remove('hidden');
+      setTimeout(() => content.classList.remove('scale-95'), 10);
+
+      const handleConfirm = () => {
+        closeModal();
+        if (onConfirm) onConfirm();
+        cleanup();
+      };
+
+      const handleCancel = () => {
+        closeModal();
+        cleanup();
+      };
+
+      const cleanup = () => {
+        confirmBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
+        modal.removeEventListener('click', handleOutsideClick);
+      };
+
+      const handleOutsideClick = (e) => {
+        if (e.target === modal) handleCancel();
+      };
+
+      confirmBtn.addEventListener('click', handleConfirm);
+      cancelBtn.addEventListener('click', handleCancel);
+      modal.addEventListener('click', handleOutsideClick);
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('customModal');
+      const content = document.getElementById('modalContent');
+      content.classList.add('scale-95');
+      setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    function switchTab(tab) {
+      document.getElementById('tabPlaylist').classList.toggle('active', tab === 'playlist');
+      document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+      document.getElementById('playlistContainer').classList.toggle('hidden', tab !== 'playlist');
+      document.getElementById('historyContainer').classList.toggle('hidden', tab !== 'history');
+    }
+
+    function initWebSocket() {
+      syncStatus.style.display = 'block';
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        syncStatus.style.display = 'none';
+        connectionBadge.textContent = '已連線';
+        connectionBadge.className = 'text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30';
+      };
+
+      ws.onmessage = (event) => {
+        syncStatus.style.display = 'none';
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.action === 'SYNC_STATE') {
+            if (data.playlist) playlist = data.playlist;
+            if (data.history) historyList = data.history;
+            renderLists();
+
+            if (data.playerState) {
+              updateRemoteUIState(data.playerState);
+            }
+          }
+
+          if (data.action === 'SYNC_TIME') {
+            const cur = data.currentTime || 0;
+            const dur = data.duration || 1;
+            currentTimeEl.textContent = formatTime(cur);
+            durationTimeEl.textContent = formatTime(dur);
+            if (!isUserDraggingSlider && dur > 0) {
+              timeSlider.value = (cur / dur) * 100;
+            }
+          }
+        } catch (e) {}
+      };
+
+      ws.onclose = () => {
+        syncStatus.style.display = 'none';
+        connectionBadge.textContent = '未連線';
+        connectionBadge.className = 'text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30';
+        setTimeout(initWebSocket, 3000);
+      };
+    }
+
+    function updateRemoteUIState(state) {
+      if (typeof state.isPlaying === 'boolean') {
+        playPauseBtn.textContent = state.isPlaying ? '暫停' : '播放';
+      }
+      if (typeof state.speed === 'number') {
+        speedBtn.textContent = state.speed + 'x';
+      }
+      if (typeof state.isSubtitleActive === 'boolean') {
+        subBtn.classList.toggle('active', state.isSubtitleActive);
+      }
+      if (typeof state.isAutoHiderEnabled === 'boolean') {
+        hideBtn.classList.toggle('active', state.isAutoHiderEnabled);
+      }
+    }
+
+    function sendRemoteCommand(cmd) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'REMOTE_CMD', command: cmd }));
+      }
+    }
+
+    timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
+    timeSlider.addEventListener('touchstart', () => { isUserDraggingSlider = true; });
+
+    timeSlider.addEventListener('change', (e) => {
+      isUserDraggingSlider = false;
+      const percent = e.target.value;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
+      }
+    });
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function renderLists() {
+      const plContainer = document.getElementById('playlistContainer');
+      plContainer.innerHTML = playlist.length === 0 ? '<div class="text-center text-gray-400 text-sm py-12 flex flex-col items-center gap-2"><span class="text-3xl">🎶</span>播放列表目前是空的</div>' : '';
+      playlist.forEach((song, i) => {
+        const isNowPlaying = (i === 0);
+        const card = document.createElement('div');
+        card.className = `song-item rounded-xl p-3 flex justify-between items-center shadow-md ${isNowPlaying ? 'now-playing' : ''}`;
+        card.innerHTML = `<div class="flex items-center gap-2.5 overflow-hidden"><span class="${isNowPlaying ? 'text-[#4facfe] font-bold' : 'text-gray-400'} text-xs shrink-0 w-5 text-right">${i + 1}.</span><div class="truncate text-sm ${isNowPlaying ? 'font-bold text-white' : 'text-gray-200'}">${song.title}</div></div>` +
+          (isNowPlaying ? `<div class="flex items-center gap-1.5 px-2.5 py-1 bg-[#4facfe]/20 text-[#4facfe] border border-[#4facfe]/30 rounded-lg text-xs font-semibold shrink-0 animate-pulse"><span class="w-2 h-2 rounded-full bg-[#4facfe]"></span>現正播放</div>` : 
+          `<button onclick="confirmRemoveSong(${i}, '${song.title.replace(/'/g, "\\'")}')" class="text-red-400 text-xs px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg">刪除</button>`);
+        plContainer.appendChild(card);
+      });
+
+      const hiContainer = document.getElementById('historyListContainer');
+      hiContainer.innerHTML = historyList.length === 0 ? '<div class="text-center text-gray-400 text-sm py-12 flex flex-col items-center gap-2"><span class="text-3xl">📜</span>尚無歷史點歌紀錄</div>' : '';
+      historyList.forEach(song => {
+        const card = document.createElement('div');
+        card.className = 'glass-panel bg-white/5 rounded-xl p-3 flex justify-between items-center shadow-md';
+        card.innerHTML = `<div class="truncate pr-2 text-sm text-gray-300">${song.title}</div><button onclick="reAddSong('${song.id}', '${song.title.replace(/'/g, "\\'")}')" class="text-[#4facfe] px-2.5 py-1 text-xs bg-[#4facfe]/10 border border-[#4facfe]/30 rounded-lg font-medium">再聽一次</button>`;
+        hiContainer.appendChild(card);
+      });
+    }
+
+    function extractVideoId(url) {
+      const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    async function fetchVideoTitle(videoId) {
+      try {
+        const res = await fetch('https://noembed.com/embed?url=https://www.youtube.com/watch?v=' + videoId);
+        const data = await res.json();
+        return data.title || ('YouTube Track (' + videoId + ')');
+      } catch (e) { return 'YouTube Track (' + videoId + ')'; }
+    }
+
+    async function handleAddSong() {
+      const inputEl = document.getElementById('urlInput');
+      const videoId = extractVideoId(inputEl.value.trim());
+      if (!videoId) { 
+        showModal({ title: '網址格式錯誤', desc: '請輸入有效的 YouTube 連結！', icon: '⚠️', showCancel: false, confirmText: '知道了', confirmColor: 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/25' }); 
+        return; 
+      }
+      
+      const btn = document.getElementById('addBtn');
+      btn.innerText = '處理中...'; btn.disabled = true;
+      const title = await fetchVideoTitle(videoId);
+      
+      ws.send(JSON.stringify({ action: 'addSong', song: { id: videoId, title } }));
+      inputEl.value = ''; btn.innerHTML = '<span>➕</span> 新增'; btn.disabled = false;
+      showToast('已成功加入播放清單', 'success'); switchTab('playlist');
+    }
+
+    function confirmRemoveSong(index, title) {
+      if (index === 0) { 
+        showModal({ title: '無法刪除', desc: '現正播放中的歌曲無法刪除！', icon: '❌', showCancel: false, confirmText: '知道了', confirmColor: 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/25' }); 
+        return; 
+      }
+      showModal({
+        title: '確認刪除此歌曲？',
+        desc: title,
+        icon: '🗑️',
+        confirmText: '確定刪除',
+        onConfirm: () => {
+          ws.send(JSON.stringify({ action: 'removeSong', index }));
+          showToast('已移除該曲目', 'info');
+        }
+      });
+    }
+
+    function reAddSong(id, title) {
+      ws.send(JSON.stringify({ action: 'addSong', song: { id, title } }));
+      showToast('已重新點播該歌曲', 'success'); switchTab('playlist');
+    }
+
+    function clearAllHistory() {
+      showModal({
+        title: '確定要清空所有歷史紀錄嗎？',
+        desc: '此動作將無法復原，請確認是否清空。',
+        icon: '⚠️',
+        confirmText: '確定清空',
+        onConfirm: () => {
+          ws.send(JSON.stringify({ action: 'clearHistory' }));
+          showToast('已清空所有歷史紀錄', 'info');
+        }
+      });
+    }
+
+    initWebSocket();
+  </script>
+</body>
+</html>
