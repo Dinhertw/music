@@ -120,7 +120,6 @@
     const subBtn = document.getElementById('subBtn');
     const hideBtn = document.getElementById('hideBtn');
 
-    // 原生 Tailwind Toast 實作
     let toastTimer = null;
     function showToast(msg, icon = '✅') {
       const container = document.getElementById('toastContainer');
@@ -140,7 +139,6 @@
       }, 2000);
     }
 
-    // 原生 Tailwind Modal 實作
     function showModal({ title, desc, icon = '⚠️', confirmText = '確定', confirmColor = 'bg-red-500 hover:bg-red-600 shadow-red-500/25', showCancel = true, onConfirm }) {
       const modal = document.getElementById('customModal');
       const content = document.getElementById('modalContent');
@@ -258,10 +256,13 @@
       }
     }
 
+    // 發送控制指令防護：未連線時直接攔截提示
     function sendRemoteCommand(cmd) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: 'REMOTE_CMD', command: cmd }));
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('尚未連線，請稍候...', 'warning');
+        return;
       }
+      ws.send(JSON.stringify({ action: 'REMOTE_CMD', command: cmd }));
     }
 
     timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
@@ -270,9 +271,11 @@
     timeSlider.addEventListener('change', (e) => {
       isUserDraggingSlider = false;
       const percent = e.target.value;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('尚未連線，無法同步進度', 'warning');
+        return;
       }
+      ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
     });
 
     function formatTime(seconds) {
@@ -318,6 +321,12 @@
     }
 
     async function handleAddSong() {
+      // 新增歌曲前的連線狀態防護
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('尚未連線，無法新增歌曲', 'warning');
+        return;
+      }
+
       const inputEl = document.getElementById('urlInput');
       const videoId = extractVideoId(inputEl.value.trim());
       if (!videoId) { 
@@ -329,12 +338,22 @@
       btn.innerText = '處理中...'; btn.disabled = true;
       const title = await fetchVideoTitle(videoId);
       
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('連線已中斷，發送失敗', 'error');
+        btn.innerHTML = '<span>➕</span> 新增'; btn.disabled = false;
+        return;
+      }
+
       ws.send(JSON.stringify({ action: 'addSong', song: { id: videoId, title } }));
       inputEl.value = ''; btn.innerHTML = '<span>➕</span> 新增'; btn.disabled = false;
       showToast('已成功加入播放清單', 'success'); switchTab('playlist');
     }
 
     function confirmRemoveSong(index, title) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('尚未連線，無法操作', 'warning');
+        return;
+      }
       if (index === 0) { 
         showModal({ title: '無法刪除', desc: '現正播放中的歌曲無法刪除！', icon: '❌', showCancel: false, confirmText: '知道了', confirmColor: 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/25' }); 
         return; 
@@ -345,26 +364,38 @@
         icon: '🗑️',
         confirmText: '確定刪除',
         onConfirm: () => {
-          ws.send(JSON.stringify({ action: 'removeSong', index }));
-          showToast('已移除該曲目', 'info');
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'removeSong', index }));
+            showToast('已移除該曲目', 'info');
+          }
         }
       });
     }
 
     function reAddSong(id, title) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('尚未連線，無法點歌', 'warning');
+        return;
+      }
       ws.send(JSON.stringify({ action: 'addSong', song: { id, title } }));
       showToast('已重新點播該歌曲', 'success'); switchTab('playlist');
     }
 
     function clearAllHistory() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('尚未連線，無法操作', 'warning');
+        return;
+      }
       showModal({
         title: '確定要清空所有歷史紀錄嗎？',
         desc: '此動作將無法復原，請確認是否清空。',
         icon: '⚠️',
         confirmText: '確定清空',
         onConfirm: () => {
-          ws.send(JSON.stringify({ action: 'clearHistory' }));
-          showToast('已清空所有歷史紀錄', 'info');
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'clearHistory' }));
+            showToast('已清空所有歷史紀錄', 'info');
+          }
         }
       });
     }
