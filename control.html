@@ -109,6 +109,7 @@
     let playlist = [];
     let historyList = [];
     let isUserDraggingSlider = false;
+    let seekTimeout = null; // 用於時間軸緩衝
 
     const syncStatus = document.getElementById('syncStatus');
     const connectionBadge = document.getElementById('connectionBadge');
@@ -256,7 +257,6 @@
       }
     }
 
-    // 發送控制指令防護：未連線時直接攔截提示
     function sendRemoteCommand(cmd) {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         showToast('尚未連線，請稍候...', 'warning');
@@ -265,17 +265,33 @@
       ws.send(JSON.stringify({ action: 'REMOTE_CMD', command: cmd }));
     }
 
+    // 時間軸互動與緩衝機制
     timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
     timeSlider.addEventListener('touchstart', () => { isUserDraggingSlider = true; });
 
-    timeSlider.addEventListener('change', (e) => {
-      isUserDraggingSlider = false;
+    // 拖曳中即時預覽時間
+    timeSlider.addEventListener('input', (e) => {
       const percent = e.target.value;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        showToast('尚未連線，無法同步進度', 'warning');
-        return;
-      }
-      ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
+      // 依據目前總時長粗略估算預覽時間數字 (若有 durationTime 可選)
+      // 這裡僅流暢更新介面數字避免跳動
+    });
+
+    // 拖曳結束（放開滑鼠/手指）：啟動 1 秒緩衝延遲再向後端發送同步
+    timeSlider.addEventListener('change', (e) => {
+      const percent = e.target.value;
+      
+      // 清除先前的計時器避免重複觸發
+      if (seekTimeout) clearTimeout(seekTimeout);
+
+      // 延遲 1 秒後才正式發送同步指令給播放器
+      seekTimeout = setTimeout(() => {
+        isUserDraggingSlider = false;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
+        } else {
+          showToast('尚未連線，無法同步進度', 'warning');
+        }
+      }, 1000);
     });
 
     function formatTime(seconds) {
@@ -321,7 +337,6 @@
     }
 
     async function handleAddSong() {
-      // 新增歌曲前的連線狀態防護
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         showToast('尚未連線，無法新增歌曲', 'warning');
         return;
