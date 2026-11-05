@@ -89,12 +89,10 @@
       align-items: center;
       gap: 10px;
       width: fit-content;
+      max-width: calc(100vw - 360px); /* 避免跟右側播放列表按鈕重疊 */
     }
 
-    .header-title {
-      font-size: 16px;
-      font-weight: bold;
-      letter-spacing: 1px;
+    .header-title-wrapper {
       background-color: rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.25);
@@ -103,6 +101,29 @@
       box-shadow: 0 4px 10px rgba(0,0,0,0.4);
       text-shadow: 0 1px 2px rgba(0,0,0,0.6);
       user-select: none;
+      max-width: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      display: inline-block;
+    }
+
+    /* 超過寬度時自動啟動跑馬燈 */
+    .header-title.marquee-enabled {
+      display: inline-block;
+      white-space: nowrap;
+      animation: headerMarquee 12s linear infinite;
+      padding-left: 100%;
+    }
+
+    @keyframes headerMarquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
     }
 
     .sync-indicator {
@@ -112,6 +133,7 @@
       background-color: #ef4444;
       box-shadow: 0 0 8px #ef4444;
       transition: background-color 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
     }
 
     .sync-indicator.connected {
@@ -541,7 +563,9 @@
 
     @media screen and (max-width: 768px) {
       .ui-layer { padding: 12px; }
-      .header-title { font-size: 13px; padding: 6px 12px; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .header-title-container { max-width: calc(100vw - 140px); }
+      .header-title-wrapper { padding: 6px 12px; }
+      .header-title { font-size: 13px; }
       .playlist-wrapper { top: 12px; right: 12px; width: auto; }
       .playlist-btn-container { width: 105px; height: 36px; }
       .playlist-btn-container.expanded { width: calc(100vw - 24px); max-width: 300px; }
@@ -564,7 +588,9 @@
 
   <div class="ui-layer" id="uiLayer">
     <div class="header-title-container">
-      <div class="header-title" id="headerTitle">Qimei Music Web</div>
+      <div class="header-title-wrapper">
+        <div class="header-title" id="headerTitle">Qimei Music Web</div>
+      </div>
       <div class="sync-indicator" id="syncIndicator" title="雲端同步狀態"></div>
     </div>
 
@@ -605,7 +631,7 @@
       <div class="subtitle-menu" id="subtitleMenu"></div>
 
       <div class="control-bar">
-        <div class="timeline-container">
+        <div class="timeline-container">文字
           <span id="currentTime">00:00</span>
           <input type="range" id="timeSlider" class="time-slider" value="0" min="0" max="100" step="0.1">
           <span id="durationTime">00:00</span>
@@ -891,7 +917,7 @@
                 if (playlist[0].id !== oldFirstId) checkAndPlayNext();
               } else {
                 if (player && isApiReady && typeof player.stopVideo === 'function') player.stopVideo();
-                headerTitle.textContent = 'Qimei Music Web (' + room + ')';
+                updateTitleDisplay('Qimei Music Web (' + room + ')');
                 playlistBtnLabel.textContent = '播放列表';
               }
             }
@@ -1031,17 +1057,30 @@
           player.unloadModule('captions');
         }
       } else {
-        headerTitle.textContent = 'Qimei Music Web (' + room + ')';
+        updateTitleDisplay('Qimei Music Web (' + room + ')');
         playlistBtnLabel.textContent = '播放列表';
       }
     }
 
+    // 智能標題更新與跑馬燈判定
+    function updateTitleDisplay(titleText) {
+      headerTitle.textContent = titleText;
+      headerTitle.classList.remove('marquee-enabled');
+      
+      // 動態判定當文字超出容器寬度時自動啟動跑馬燈
+      setTimeout(() => {
+        if (headerTitle.scrollWidth > headerTitle.parentElement.clientWidth) {
+          headerTitle.classList.add('marquee-enabled');
+        }
+      }, 50);
+    }
+
     function updateCurrentSongDisplay() {
       if (playlist.length > 0) {
-        headerTitle.textContent = playlist[0].title;
+        updateTitleDisplay(playlist[0].title);
         playlistBtnLabel.textContent = `播放中 (${playlist.length})`;
       } else {
-        headerTitle.textContent = 'Qimei Music Web (' + room + ')';
+        updateTitleDisplay('Qimei Music Web (' + room + ')');
         playlistBtnLabel.textContent = '播放列表';
       }
     }
