@@ -1029,6 +1029,13 @@
               const oldFirstId = playlist.length > 0 ? playlist[0].id : null;
               playlist = data.playlist;
               playHistory = data.history || [];
+              
+              // 檢查：如果同步過來的播放列表為空，則自動發送加入預設影片請求
+              if (playlist.length === 0) {
+                processYouTubeUrl('https://youtu.be/CvsrR7D96OE');
+                return;
+              }
+
               updatePlaylistUI();
 
               if (playlist.length > 0) {
@@ -1175,8 +1182,8 @@
           player.unloadModule('captions');
         }
       } else {
-        updateTitleDisplay('Qimei Music Web (' + room + ')');
-        playlistBtnLabel.textContent = '播放列表';
+        // 如果本地檢查時發現列表為空，自動補上預設影片
+        processYouTubeUrl('https://youtu.be/CvsrR7D96OE');
       }
     }
 
