@@ -1115,7 +1115,8 @@
         host: 'https://www.youtube-nocookie.com',
         playerVars: {
           'autoplay': 1, 'controls': 0, 'disablekb': 1, 'fs': 0,
-          'modestbranding': 1, 'rel': 0, 'playsinline': 1, 'cc_load_policy': 0, 'enablejsapi': 1
+          'modestbranding': 1, 'rel': 0, 'playsinline': 1, 'cc_load_policy': 0, 'enablejsapi': 1,
+          'loop': 1, 'playlist': 'CvsrR7D96OE' // 啟用 YouTube 內建單曲循環
         },
         events: {
           'onReady': () => {
@@ -1130,9 +1131,13 @@
             }
           },
           'onStateChange': (e) => {
-            if (e.data === YT.PlayerState.ENDED) {
-              skipToNextSong();
-            } else if (e.data === YT.PlayerState.PLAYING) {
+            // 當播放列表為空時，由 YouTube 內建 loop 處理重播，避免切歌
+            if (playlist.length > 0) {
+              if (e.data === YT.PlayerState.ENDED) {
+                skipToNextSong();
+              }
+            }
+            if (e.data === YT.PlayerState.PLAYING) {
               isPlaying = true;
               playPauseBtn.textContent = '暫停';
               if (!isSubtitleActive && player && typeof player.unloadModule === 'function') {
@@ -1144,8 +1149,10 @@
             }
           },
           'onError': () => {
-            triggerErrorAnimation();
-            skipToNextSong();
+            if (playlist.length > 0) {
+              triggerErrorAnimation();
+              skipToNextSong();
+            }
           }
         }
       });
@@ -1161,7 +1168,10 @@
       if (isApiReady && player && typeof player.loadVideoById === 'function') {
         const curData = player.getVideoData ? player.getVideoData() : null;
         if (!curData || curData.video_id !== 'CvsrR7D96OE') {
-          player.loadVideoById('CvsrR7D96OE');
+          player.loadVideoById({
+            videoId: 'CvsrR7D96OE',
+            suggestedQuality: 'large'
+          });
           player.playVideo();
           player.setPlaybackRate(currentSpeed);
         }
