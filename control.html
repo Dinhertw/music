@@ -83,7 +83,8 @@
     </div>
   </main>
 
-  <footer class="remote-control-panel p-3.5 flex flex-col gap-2.5 shrink-0 z-20">
+  <!-- 根據 &bar=1 參數動態決定是否隱藏 -->
+  <footer id="playBarFooter" class="remote-control-panel p-3.5 flex flex-col gap-2.5 shrink-0 z-20 hidden">
     <div class="flex items-center gap-2 text-xs text-gray-300">
       <span id="currentTime">00:00</span>
       <input type="range" id="timeSlider" class="time-slider flex-1" value="0" min="0" max="100" step="0.1">
@@ -101,6 +102,13 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const room = urlParams.get('room') || 'default_room';
+    const showBar = urlParams.get('bar') === '1';
+
+    // 若網址包含 &bar=1 則顯示 play bar 區域
+    if (showBar) {
+      document.getElementById('playBarFooter').classList.remove('hidden');
+    }
+
     document.getElementById('roomTitle').textContent = `Remote (${room})`;
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -109,7 +117,7 @@
     let playlist = [];
     let historyList = [];
     let isUserDraggingSlider = false;
-    let seekTimeout = null; // 用於時間軸緩衝
+    let seekTimeout = null;
 
     const syncStatus = document.getElementById('syncStatus');
     const connectionBadge = document.getElementById('connectionBadge');
@@ -266,33 +274,24 @@
     }
 
     // 時間軸互動與緩衝機制
-    timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
-    timeSlider.addEventListener('touchstart', () => { isUserDraggingSlider = true; });
+    if (timeSlider) {
+      timeSlider.addEventListener('mousedown', () => { isUserDraggingSlider = true; });
+      timeSlider.addEventListener('touchstart', () => { isUserDraggingSlider = true; });
 
-    // 拖曳中即時預覽時間
-    timeSlider.addEventListener('input', (e) => {
-      const percent = e.target.value;
-      // 依據目前總時長粗略估算預覽時間數字 (若有 durationTime 可選)
-      // 這裡僅流暢更新介面數字避免跳動
-    });
+      timeSlider.addEventListener('change', (e) => {
+        const percent = e.target.value;
+        if (seekTimeout) clearTimeout(seekTimeout);
 
-    // 拖曳結束（放開滑鼠/手指）：啟動 1 秒緩衝延遲再向後端發送同步
-    timeSlider.addEventListener('change', (e) => {
-      const percent = e.target.value;
-      
-      // 清除先前的計時器避免重複觸發
-      if (seekTimeout) clearTimeout(seekTimeout);
-
-      // 延遲 1 秒後才正式發送同步指令給播放器
-      seekTimeout = setTimeout(() => {
-        isUserDraggingSlider = false;
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
-        } else {
-          showToast('尚未連線，無法同步進度', 'warning');
-        }
-      }, 1000);
-    });
+        seekTimeout = setTimeout(() => {
+          isUserDraggingSlider = false;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'SEEK_TIME', percent: percent }));
+          } else {
+            showToast('尚未連線，無法同步進度', 'warning');
+          }
+        }, 1000);
+      });
+    }
 
     function formatTime(seconds) {
       const mins = Math.floor(seconds / 60);
